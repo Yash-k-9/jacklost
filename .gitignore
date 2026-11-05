@@ -1,0 +1,11 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Secrets (copy backend/.env.example to backend/.env)
+.env
+
+# Local SQLite database
+*.db
