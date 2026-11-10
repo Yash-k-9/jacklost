@@ -13,10 +13,13 @@
 
   <section id="claimBox" class="card hidden" style="margin-top:18px">
     <b>Add a station</b>
-    <div class="muted">Use the station ID and the 8-character pairing code on the unit's label.</div>
+    <div class="muted">Type the <span class="mono">DEVICE_ID</span> from the station's ESP32 sketch. Readings show up as soon as it sends one.
+      Add as many stations as you like.</div>
     <form id="claimForm" class="row" style="margin-top:6px">
-      <div><label for="clId">Station ID</label><input id="clId" placeholder="station-01" required maxlength="64"></div>
-      <div><label for="clCode">Pairing code</label><input id="clCode" class="mono" placeholder="ABCD2345" required maxlength="16" autocomplete="off"></div>
+      <div><label for="clId">Station ID</label><input id="clId" class="mono" placeholder="station-01" required maxlength="64"
+           pattern="[A-Za-z0-9_\-]+" title="Letters, digits, - and _ only"></div>
+      <div><label for="clName">Name (optional)</label><input id="clName" placeholder="Lobby charger" maxlength="128"></div>
+      <div><label for="clLoc">Location (optional)</label><input id="clLoc" placeholder="Ground floor" maxlength="128"></div>
       <button class="primary">Add station</button>
     </form>
     <div class="msg" id="clMsg"></div>
@@ -48,7 +51,7 @@ let me;
 
 function headers() {
   const cols = ["Station", "Status", "Last seen", "Uptime", "IP"];
-  if (me.role === "admin") cols.push("Host", "Pairing code");
+  if (me.role === "admin") cols.push("Host", "Added", "Pairing code");
   $("thead").innerHTML = `<tr>${cols.map(c => `<th>${c}</th>`).join("")}<th></th></tr>`;
   return cols.length + 1;
 }
@@ -82,6 +85,7 @@ async function load() {
     let extra = "";
     if (me.role === "admin") {
       extra = `<td>${d.owner_email ? esc(d.owner_email) : '<span class="muted">unassigned</span>'}</td>
+               <td>${d.added_at ? fmtTs(d.added_at) : "–"}</td>
                <td class="mono">${esc(d.pairing_code || "–")}</td>`;
     }
     return `<tr>
@@ -101,9 +105,12 @@ $("claimForm").onsubmit = async e => {
   e.preventDefault();
   const btn = e.submitter || e.target.querySelector("button"); btn.disabled = true;
   try {
-    const d = await api("/api/devices/claim", { method: "POST",
-      body: { device_id: $("clId").value.trim(), pairing_code: $("clCode").value.trim().toUpperCase() } });
-    showMsg($("clMsg"), `Added ${d.id}.`, true);
+    const d = await api("/api/devices", { method: "POST", body: {
+      device_id: $("clId").value.trim(),
+      name: $("clName").value.trim() || null,
+      location: $("clLoc").value.trim() || null } });
+    showMsg($("clMsg"), d.last_seen ? `Added ${d.id}. It is already sending readings.`
+      : `Added ${d.id}. Waiting for its first reading: power on the ESP32 with DEVICE_ID "${d.id}".`, true);
     $("claimForm").reset();
     load();
   } catch (err) { showMsg($("clMsg"), err.message); }

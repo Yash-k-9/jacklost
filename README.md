@@ -68,8 +68,12 @@ that misbehaves. The rest stay normal.
 
 ## Logins and roles
 - **End hosts** sign up at `POST /api/auth/signup` (active at once, no approval). A host adds
-  each of their stations with the station id + its 8-character pairing code (one host, many
-  stations). Hosts only ever see their own stations; anyone else's answers 404.
+  each of their stations themselves by its station id (the `DEVICE_ID` in the ESP32 sketch), with
+  no admin step; one host can have many stations. A new id is created on their account and fills
+  with readings once that ESP32 reports. An id already owned by someone else is refused. Hosts
+  only ever see their own stations; anyone else's answers 404.
+- Admins see every station with the host who added it and when (`added_at`), and a
+  `device_added` audit entry. Claiming with an 8-character pairing code still works too.
 - **Admins** are created only with `scripts/create_admin.py`. They see every host and station,
   can assign stations, see pairing codes, deactivate hosts and read the audit log.
 - Sessions are an httpOnly cookie (`jg_session`, also accepted as `Authorization: Bearer`).
@@ -82,7 +86,8 @@ that misbehaves. The rest stay normal.
 | POST | `/api/auth/login` / `logout` / `logout-all` | anyone / user | session |
 | GET | `/api/auth/me` | user | current account |
 | POST | `/api/auth/change-password` | user | also logs out other browsers |
-| POST | `/api/devices/claim` | host | `{device_id, pairing_code}` adds a station |
+| POST | `/api/devices` | host | `{device_id, name?, location?}` adds a station (no admin step) |
+| POST | `/api/devices/claim` | host | `{device_id, pairing_code}` adds a station by pairing code |
 | POST | `/api/devices/{id}/release` | owner, admin | removes it from the account |
 | GET | `/api/admin/users?role=host` | admin | accounts with station counts |
 | PATCH | `/api/admin/users/{id}` | admin | `is_active`, `full_name` |

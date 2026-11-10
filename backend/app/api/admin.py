@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..auth.deps import audit, require_admin
 from ..auth.security import new_pairing_code
-from ..db import get_db
+from ..db import get_db, utcnow
 from ..models import ROLE_HOST, AuditLog, Device, User
 from ..schemas import AdminUserOut, AdminUserUpdate, AssignIn, AuditOut, DeviceOut, UserOut
 from .devices import device_out
@@ -71,6 +71,7 @@ def assign_device(device_id: str, body: AssignIn, request: Request,
     audit(db, request, admin, "device_assigned", target=d.id,
           detail={"from_user_id": d.owner_id, "to_user_id": body.user_id})
     d.owner_id = body.user_id
+    d.added_at = utcnow() if body.user_id is not None else None
     db.commit()
     return device_out(d, admin, db)
 

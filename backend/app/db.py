@@ -37,7 +37,8 @@ def init_db() -> None:
 # Columns added after the first release. create_all() never alters existing tables,
 # so an older juiceguard.db gets them here (no data is lost).
 _NEW_COLUMNS = {
-    "devices": {"owner_id": "INTEGER REFERENCES users(id)", "pairing_code": "VARCHAR(16)"},
+    "devices": {"owner_id": "INTEGER REFERENCES users(id)", "pairing_code": "VARCHAR(16)",
+                "added_at": "DATETIME"},
 }
 
 

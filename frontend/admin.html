@@ -58,12 +58,12 @@
     </div>
     <div class="tablewrap">
       <table>
-        <thead><tr><th>Station</th><th>Status</th><th>Pairing code</th><th>Host</th><th></th></tr></thead>
+        <thead><tr><th>Station</th><th>Status</th><th>Pairing code</th><th>Host (added)</th><th></th></tr></thead>
         <tbody id="stRows"><tr><td class="empty" colspan="5">Loading…</td></tr></tbody>
       </table>
     </div>
-    <div class="muted" style="margin-top:8px">Give the station ID and pairing code to its host so they can add it themselves,
-      or pick the host here. A new pairing code does not change who owns the station.</div>
+    <div class="muted" style="margin-top:8px">Hosts add their own stations by station ID; each one shows here with the host who added it and when
+      (the audit log has a <span class="mono">device_added</span> entry too). You can still move a station to another host here.</div>
   </section>
 
   <!-- Audit -->
@@ -75,7 +75,7 @@
           <select id="auAction">
             <option value="">Any</option>
             <option>login</option><option>login_failed</option><option>signup</option><option>logout_all</option>
-            <option>password_changed</option><option>device_claimed</option><option>claim_failed</option>
+            <option>password_changed</option><option>device_added</option><option>device_claimed</option><option>claim_failed</option>
             <option>device_released</option><option>device_assigned</option><option>device_updated</option>
             <option>command_sent</option><option>pairing_code_regenerated</option><option>user_updated</option>
           </select></div>
@@ -172,7 +172,8 @@ async function loadStations() {
           <div class="muted">${esc(d.name ? d.id : "")}${d.location ? (d.name ? " · " : "") + esc(d.location) : ""}</div></td>
       <td>${statePill(d.state)} <div class="muted">${ago(d.seconds_since_seen)}</div></td>
       <td class="mono">${esc(d.pairing_code || "–")}</td>
-      <td><select data-assign="${esc(d.id)}" data-was="${d.owner_id ?? ""}">${opts.join("")}</select></td>
+      <td><select data-assign="${esc(d.id)}" data-was="${d.owner_id ?? ""}">${opts.join("")}</select>
+          <div class="muted">${d.added_at ? "added " + fmtTs(d.added_at) : ""}</div></td>
       <td class="actions"><button data-code="${esc(d.id)}">New pairing code</button></td>
     </tr>`;
   }).join("");

@@ -47,6 +47,8 @@ class Device(Base):
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
     # A host needs the station id AND this code to claim it (shown to admins / printed on the unit).
     pairing_code: Mapped[str | None] = mapped_column(String(16))
+    # When the current owner added it (host "Add station", pairing-code claim or admin assign).
+    added_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class Reading(Base):

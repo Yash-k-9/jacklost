@@ -205,3 +205,60 @@ def test_stations_can_only_go_to_hosts(client, admin):
     admin_id = admin.get("/api/auth/me").json()["id"]
     assert admin.post(f"/api/admin/devices/{sid}/assign", json={"user_id": admin_id}).status_code == 422
     assert admin.post(f"/api/admin/devices/{sid}/assign", json={"user_id": 999999}).status_code == 404
+
+
+# ---- hosts add their own stations (no admin step) -------------------------------------------
+
+def test_host_adds_new_stations_by_id_and_readings_arrive(client, admin, new_client):
+    asha = new_client()
+    asha_id = signup(asha)["id"]
+    s1, s2 = f"st-{uuid.uuid4().hex[:6]}", f"st-{uuid.uuid4().hex[:6]}"
+
+    r = asha.post("/api/devices", json={"device_id": f"  {s1} ", "name": "Lobby", "location": "Ground"})
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["id"] == s1 and body["owner_id"] == asha_id and body["name"] == "Lobby"
+    assert body["added_at"] and body["last_seen"] is None and body["state"] == "OFFLINE"
+    assert body["pairing_code"] is None                       # hosts never see codes
+    assert asha.post("/api/devices", json={"device_id": s2}).status_code == 201   # many per host
+
+    # The ESP32 with that id starts sending: readings land on Asha's station.
+    assert client.post("/api/ingest", json=payload(device_id=s1), headers=KEY).status_code == 200
+    mine = {d["id"]: d for d in asha.get("/api/devices").json()}
+    assert set(mine) == {s1, s2} and mine[s1]["online"] and mine[s1]["name"] == "Lobby"
+    assert len(asha.get(f"/api/devices/{s1}/readings").json()) == 1
+
+    # The admin sees both, with who added them and when, plus an audit entry.
+    seen = {d["id"]: d for d in admin.get(f"/api/devices?owner_id={asha_id}").json()}
+    assert set(seen) == {s1, s2} and seen[s1]["owner_email"] and seen[s1]["added_at"]
+    entry = admin.get(f"/api/admin/audit?action=device_added&target={s1}").json()[0]
+    assert entry["user_id"] == asha_id and entry["detail"]["new"] is True
+
+
+def test_host_adds_a_station_that_is_already_sending(client, admin, new_client):
+    sid, _ = station(client, admin)                           # unowned, already reporting
+    host = new_client()
+    signup(host)
+    r = host.post("/api/devices", json={"device_id": sid})
+    assert r.status_code == 201 and r.json()["online"]
+    assert admin.get(f"/api/admin/audit?action=device_added&target={sid}").json()[0]["detail"]["new"] is False
+
+
+def test_add_station_refuses_taken_ids_bad_ids_and_admins(client, admin, new_client):
+    asha, ravi = new_client(), new_client()
+    signup(asha), signup(ravi)
+    sid = f"st-{uuid.uuid4().hex[:6]}"
+    assert asha.post("/api/devices", json={"device_id": sid}).status_code == 201
+    assert asha.post("/api/devices", json={"device_id": sid}).status_code == 409   # already mine
+    assert ravi.post("/api/devices", json={"device_id": sid}).status_code == 409   # someone else's
+    assert ravi.get(f"/api/devices/{sid}").status_code == 404                     # still private
+    assert asha.post("/api/devices", json={"device_id": "bad id!"}).status_code == 422
+    assert admin.post("/api/devices", json={"device_id": "st-admin"}).status_code == 403
+
+    # Once Asha removes it, anyone can add it again.
+    assert asha.post(f"/api/devices/{sid}/release").status_code == 204
+    assert ravi.post("/api/devices", json={"device_id": sid}).status_code == 201
+
+
+def test_station_list_is_still_login_only(client):
+    assert client.post("/api/devices", json={"device_id": "st-x"}).status_code == 401

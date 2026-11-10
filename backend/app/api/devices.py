@@ -14,7 +14,8 @@ from .. import config
 from ..auth.deps import audit, current_user, get_accessible_device
 from ..db import get_db, utcnow
 from ..models import ROLE_ADMIN, AuditLog, Command, Device, Reading, User
-from ..schemas import ClaimIn, CommandIn, CommandOut, DeviceOut, DeviceUpdate, ReadingOut
+from ..auth.security import new_pairing_code
+from ..schemas import ClaimIn, CommandIn, CommandOut, DeviceOut, DeviceUpdate, ReadingOut, StationCreate
 from ..services import is_online, seconds_since, thresholds_for
 
 router = APIRouter(prefix="/api/devices", tags=["devices"])
@@ -35,6 +36,7 @@ def device_out(d: Device, viewer: User, db: Session) -> DeviceOut:
         owner_id=d.owner_id,
         owner_email=owner.email if owner else None,
         pairing_code=d.pairing_code if admin else None,
+        added_at=d.added_at,
     )
 
 
@@ -52,6 +54,38 @@ def list_devices(
     elif owner_id is not None:
         q = q.where(Device.owner_id == owner_id)
     return [device_out(d, user, db) for d in db.scalars(q)]
+
+
+@router.post("", response_model=DeviceOut, status_code=201)
+def add_station(body: StationCreate, request: Request,
+                user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """A host adds a station by its device_id, no admin approval needed.
+
+    New id: the station is created on the host's account and starts showing readings as soon
+    as the ESP32 with that id sends one. Already sending but nobody's: it moves to this host.
+    Owned by someone else: refused. The admin sees who added it (Host column + audit log).
+    """
+    if user.role == ROLE_ADMIN:
+        raise HTTPException(403, "Admins assign stations to hosts from the Admin page")
+    now = utcnow()
+    d = db.get(Device, body.device_id)
+    if d is not None and d.owner_id == user.id:
+        raise HTTPException(409, "This station is already on your account")
+    if d is not None and d.owner_id is not None:
+        raise HTTPException(409, "This station ID is already used by another account")
+    created = d is None
+    if created:
+        d = Device(id=body.device_id, first_seen=now, pairing_code=new_pairing_code())
+        db.add(d)
+    d.owner_id, d.added_at = user.id, now
+    if body.name:
+        d.name = body.name.strip()
+    if body.location:
+        d.location = body.location.strip()
+    audit(db, request, user, "device_added", target=d.id,
+          detail={"new": created, "name": d.name, "location": d.location})
+    db.commit()
+    return device_out(d, user, db)
 
 
 @router.post("/claim", response_model=DeviceOut)
@@ -74,7 +108,7 @@ def claim_device(body: ClaimIn, request: Request,
         return device_out(d, user, db)
     if d.owner_id is not None:
         raise HTTPException(409, "This station is already registered to another account")
-    d.owner_id = user.id
+    d.owner_id, d.added_at = user.id, utcnow()
     audit(db, request, user, "device_claimed", target=d.id)
     db.commit()
     return device_out(d, user, db)
@@ -88,7 +122,7 @@ def release_device(device_id: str, request: Request,
     if d.owner_id is None:
         return
     audit(db, request, user, "device_released", target=d.id, detail={"previous_owner_id": d.owner_id})
-    d.owner_id = None
+    d.owner_id = d.added_at = None
     db.commit()
 
 

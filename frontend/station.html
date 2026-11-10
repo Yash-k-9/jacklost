@@ -104,7 +104,7 @@
     <h2>Remove station</h2>
     <div class="card">
       <div class="muted" id="releaseText">Removes this station from the host's account. It keeps sending data;
-        someone with the pairing code can add it again.</div>
+        any host can add it again with its station ID.</div>
       <button id="release" class="danger" style="margin-top:10px">Remove from account</button>
       <div class="msg" id="relMsg"></div>
     </div>
@@ -211,7 +211,7 @@ async function refresh() {
     if (e.status === 404) {
       const hint = me.role === "admin"
         ? "It has never sent a reading. Check Wi-Fi, SERVER_URL and API_KEY in the sketch."
-        : "It is not on your account, or it has never sent a reading. Add it on the Stations page with its pairing code.";
+        : "It is not on your account, or it has never sent a reading. Add it on the Stations page with its station ID.";
       setCheck("c-known", "bad", "NO", hint);
       setVerdict("bad", "Station not found", `No station "${deviceId}" here.`);
     } else {
@@ -324,7 +324,7 @@ $("settings").onsubmit = async e => {
 };
 
 $("release").onclick = async () => {
-  if (!confirm(`Remove ${deviceId} from the account? The pairing code is needed to add it again.`)) return;
+  if (!confirm(`Remove ${deviceId} from the account? Any host can then add it with its station ID.`)) return;
   try {
     await api(devPath + "/release", { method: "POST" });
     location.href = "index.html";

@@ -52,6 +52,7 @@ class DeviceOut(BaseModel):
     owner_id: int | None = None
     owner_email: str | None = None  # admins only
     pairing_code: str | None = None  # admins only
+    added_at: datetime | None = None  # when its current host added it
 
 
 class ReadingOut(BaseModel):
@@ -173,6 +174,18 @@ class AdminUserUpdate(BaseModel):
 class ClaimIn(BaseModel):
     device_id: str = Field(min_length=1, max_length=64)
     pairing_code: str = Field(min_length=1, max_length=16)
+
+
+class StationCreate(BaseModel):
+    """A host adds a station by the device_id set in its sketch. No admin step needed."""
+    device_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_\-]+$")
+    name: str | None = Field(default=None, max_length=128)
+    location: str | None = Field(default=None, max_length=128)
+
+    @field_validator("device_id", mode="before")
+    @classmethod
+    def _strip_id(cls, v):
+        return v.strip() if isinstance(v, str) else v
 
 
 class AssignIn(BaseModel):

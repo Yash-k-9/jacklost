@@ -4,8 +4,20 @@
     {
       "name": "backend-test",
       "runtimeExecutable": "D:/juicejacking/.venv/Scripts/python.exe",
-      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--app-dir", "D:/juicejacking/backend", "--port", "8001"],
-      "env": { "DATABASE_URL": "sqlite:///C:/Users/HP/AppData/Local/Temp/claude/7b1439e105fb6697/b3dd6f60-fd95-4f86-baca-0181b5ddb3ed/scratchpad/test.db", "JWT_SECRET": "local-test-secret-0123456789abcdef" },
+      "runtimeArgs": [
+        "-m",
+        "uvicorn",
+        "app.main:app",
+        "--app-dir",
+        "D:/juicejacking/backend",
+        "--port",
+        "8001"
+      ],
+      "env": {
+        "DATABASE_URL": "sqlite:///C:/Users/HP/AppData/Local/Temp/claude/6b3818fa53c9f6a6/62d7b2e2-7da8-45ad-b79e-94cd189268b1/scratchpad/ui-test.db",
+        "JWT_SECRET": "local-test-secret-0123456789abcdef",
+        "DEVICE_API_KEY": "ui-test-key"
+      },
       "port": 8001
     }
   ]
