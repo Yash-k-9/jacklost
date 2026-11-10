@@ -9,6 +9,12 @@
   td select { width: auto; min-width: 180px; padding: 4px 6px; }
   .detail { font-size: 12px; color: var(--muted); max-width: 320px; overflow-wrap: anywhere; }
   .filters .row > div { min-width: 120px; }
+  .hostgroup { margin-top: 14px; padding: 0; overflow: hidden; }
+  .hostgroup > header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;
+                        padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .hostgroup > header .count { margin-left: auto; }
+  .hostgroup .tablewrap { border: 0; border-radius: 0; }
+  .hostgroup .empty { text-align: left; padding: 12px 16px; }
 </style>
 </head>
 <body>
@@ -47,22 +53,14 @@
 
   <!-- Stations -->
   <section id="tab-stations" class="hidden">
-    <div class="row" style="margin-bottom:10px">
-      <div style="max-width:260px">
+    <div class="row" style="margin-bottom:4px">
+      <div style="max-width:320px">
         <label for="stFilter">Show</label>
-        <select id="stFilter">
-          <option value="all">All stations</option>
-          <option value="unclaimed">Not assigned to a host</option>
-        </select>
+        <select id="stFilter"><option value="all">All hosts</option></select>
       </div>
     </div>
-    <div class="tablewrap">
-      <table>
-        <thead><tr><th>Station</th><th>Status</th><th>Pairing code</th><th>Host (added)</th><th></th></tr></thead>
-        <tbody id="stRows"><tr><td class="empty" colspan="5">Loading…</td></tr></tbody>
-      </table>
-    </div>
-    <div class="muted" style="margin-top:8px">Hosts add their own stations by station ID; each one shows here with the host who added it and when
+    <div id="stGroups"><div class="card empty">Loading…</div></div>
+    <div class="muted" style="margin-top:8px">Stations are grouped by the host who owns them. Hosts add their own stations by station ID; each shows when it was added
       (the audit log has a <span class="mono">device_added</span> entry too). You can still move a station to another host here.</div>
   </section>
 
@@ -154,39 +152,70 @@ async function loadHosts() {
   hosts = await api("/api/admin/users?role=host");
 }
 
+function stationRow(d) {
+  const opts = [`<option value="">— nobody —</option>`].concat(hosts.map(h =>
+    `<option value="${h.id}" ${h.id === d.owner_id ? "selected" : ""}>${esc(h.full_name)} (${esc(h.email)})${h.is_active ? "" : " – deactivated"}</option>`));
+  return `<tr>
+    <td><a href="station.html?id=${encodeURIComponent(d.id)}"><b>${esc(d.name || d.id)}</b></a>
+        <div class="muted">${esc(d.name ? d.id : "")}${d.location ? (d.name ? " · " : "") + esc(d.location) : ""}</div></td>
+    <td>${statePill(d.state)} <div class="muted">${ago(d.seconds_since_seen)}</div></td>
+    <td>${d.added_at ? fmtTs(d.added_at) : "–"}</td>
+    <td class="mono">${esc(d.pairing_code || "–")}</td>
+    <td><select data-assign="${esc(d.id)}" data-was="${d.owner_id ?? ""}" aria-label="Host for ${esc(d.id)}">${opts.join("")}</select></td>
+    <td class="actions"><button data-code="${esc(d.id)}">New pairing code</button></td>
+  </tr>`;
+}
+
+function hostGroup(title, sub, list, emptyText) {
+  const online = list.filter(d => d.online).length;
+  return `<section class="card hostgroup">
+    <header><b>${title}</b>${sub}
+      <span class="muted count">${list.length} station${list.length === 1 ? "" : "s"}${list.length ? `, ${online} online` : ""}</span></header>
+    ${list.length ? `<div class="tablewrap"><table>
+      <thead><tr><th>Station</th><th>Status</th><th>Added</th><th>Pairing code</th><th>Move to host</th><th></th></tr></thead>
+      <tbody>${list.map(stationRow).join("")}</tbody></table></div>`
+    : `<div class="empty">${emptyText}</div>`}
+  </section>`;
+}
+
 async function loadStations() {
   let devices;
   try {
     await loadHosts();
-    devices = await api("/api/devices" + ($("stFilter").value === "unclaimed" ? "?unclaimed=true" : ""));
+    devices = await api("/api/devices");
   } catch (e) { return msg(e.message); }
-  if (!devices.length) {
-    $("stRows").innerHTML = `<tr><td class="empty" colspan="5">No stations. A station appears after its first reading.</td></tr>`;
-    return;
-  }
-  $("stRows").innerHTML = devices.map(d => {
-    const opts = [`<option value="">— nobody —</option>`].concat(hosts.map(h =>
-      `<option value="${h.id}" ${h.id === d.owner_id ? "selected" : ""}>${esc(h.full_name)} (${esc(h.email)})${h.is_active ? "" : " – deactivated"}</option>`));
-    return `<tr>
-      <td><a href="station.html?id=${encodeURIComponent(d.id)}"><b>${esc(d.name || d.id)}</b></a>
-          <div class="muted">${esc(d.name ? d.id : "")}${d.location ? (d.name ? " · " : "") + esc(d.location) : ""}</div></td>
-      <td>${statePill(d.state)} <div class="muted">${ago(d.seconds_since_seen)}</div></td>
-      <td class="mono">${esc(d.pairing_code || "–")}</td>
-      <td><select data-assign="${esc(d.id)}" data-was="${d.owner_id ?? ""}">${opts.join("")}</select>
-          <div class="muted">${d.added_at ? "added " + fmtTs(d.added_at) : ""}</div></td>
-      <td class="actions"><button data-code="${esc(d.id)}">New pairing code</button></td>
-    </tr>`;
-  }).join("");
 
-  $("stRows").querySelectorAll("[data-assign]").forEach(sel => sel.onchange = async () => {
+  // Host filter: keep the current choice while refreshing the options.
+  const sel = $("stFilter"), want = sel.value || "all";
+  sel.innerHTML = `<option value="all">All hosts</option>` + hosts.map(h =>
+    `<option value="${h.id}">${esc(h.full_name)} (${esc(h.email)})</option>`).join("") +
+    `<option value="none">Not assigned to a host</option>`;
+  sel.value = [...sel.options].some(o => o.value === want) ? want : "all";
+  const show = sel.value;
+
+  const byOwner = new Map();
+  devices.forEach(d => { const k = d.owner_id ?? "none"; byOwner.set(k, [...(byOwner.get(k) || []), d]); });
+
+  const groups = [];
+  hosts.filter(h => show === "all" || String(h.id) === show).forEach(h => groups.push(hostGroup(
+    esc(h.full_name),
+    ` <span class="muted">${esc(h.email)}</span>${h.is_active ? "" : ' <span class="pill bad">Deactivated</span>'}`,
+    byOwner.get(h.id) || [], "No stations yet.")));
+  const unowned = byOwner.get("none") || [];
+  if (show === "none" || (show === "all" && unowned.length)) groups.push(hostGroup(
+    "Not assigned to a host", "", unowned, "Every station has a host."));
+  $("stGroups").innerHTML = groups.join("") ||
+    `<div class="card empty">No hosts yet. Hosts sign up on the login page.</div>`;
+
+  $("stGroups").querySelectorAll("[data-assign]").forEach(sel => sel.onchange = async () => {
     const id = sel.dataset.assign, userId = sel.value ? Number(sel.value) : null;
     const who = userId ? sel.selectedOptions[0].textContent : "nobody";
-    if (!confirm(`Assign ${id} to ${who}?`)) { sel.value = sel.dataset.was; return; }
+    if (!confirm(`Move ${id} to ${who}?`)) { sel.value = sel.dataset.was; return; }
     try { await api(`/api/admin/devices/${encodeURIComponent(id)}/assign`, { method: "POST", body: { user_id: userId } });
-          msg(`${id} assigned to ${who}.`, true); loadStations(); }
+          msg(`${id} moved to ${who}.`, true); loadStations(); }
     catch (e) { msg(e.message); sel.value = sel.dataset.was; }
   });
-  $("stRows").querySelectorAll("[data-code]").forEach(b => b.onclick = async () => {
+  $("stGroups").querySelectorAll("[data-code]").forEach(b => b.onclick = async () => {
     const id = b.dataset.code;
     if (!confirm(`Make a new pairing code for ${id}? The old code stops working.`)) return;
     try { const d = await api(`/api/admin/devices/${encodeURIComponent(id)}/pairing-code`, { method: "POST" });
