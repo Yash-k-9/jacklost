@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend-test",
+      "runtimeExecutable": "D:/juicejacking/.venv/Scripts/python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--app-dir", "D:/juicejacking/backend", "--port", "8001"],
+      "env": { "DATABASE_URL": "sqlite:///C:/Users/HP/AppData/Local/Temp/claude/7b1439e105fb6697/b3dd6f60-fd95-4f86-baca-0181b5ddb3ed/scratchpad/test.db", "JWT_SECRET": "local-test-secret-0123456789abcdef" },
+      "port": 8001
+    }
+  ]
+}

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Juice Guard – Stations</title>
+<link rel="stylesheet" href="common.css">
+</head>
+<body>
+<main>
+  <h1 id="title">My stations</h1>
+  <div class="sub" id="subtitle">Live status, refreshes every 3 s. Click a station for the full check.</div>
+
+  <section id="claimBox" class="card hidden" style="margin-top:18px">
+    <b>Add a station</b>
+    <div class="muted">Use the station ID and the 8-character pairing code on the unit's label.</div>
+    <form id="claimForm" class="row" style="margin-top:6px">
+      <div><label for="clId">Station ID</label><input id="clId" placeholder="station-01" required maxlength="64"></div>
+      <div><label for="clCode">Pairing code</label><input id="clCode" class="mono" placeholder="ABCD2345" required maxlength="16" autocomplete="off"></div>
+      <button class="primary">Add station</button>
+    </form>
+    <div class="msg" id="clMsg"></div>
+  </section>
+
+  <section id="filterBox" class="row hidden" style="margin-top:18px">
+    <div style="max-width:260px">
+      <label for="filter">Show</label>
+      <select id="filter">
+        <option value="all">All stations</option>
+        <option value="unclaimed">Not assigned to a host</option>
+      </select>
+    </div>
+  </section>
+
+  <h2 id="count">Stations</h2>
+  <div class="tablewrap">
+    <table>
+      <thead id="thead"></thead>
+      <tbody id="rows"><tr><td class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+  <div class="msg" id="listMsg"></div>
+</main>
+
+<script src="common.js"></script>
+<script>
+let me;
+
+function headers() {
+  const cols = ["Station", "Status", "Last seen", "Uptime", "IP"];
+  if (me.role === "admin") cols.push("Host", "Pairing code");
+  $("thead").innerHTML = `<tr>${cols.map(c => `<th>${c}</th>`).join("")}<th></th></tr>`;
+  return cols.length + 1;
+}
+
+function dur(sec) {
+  if (sec == null) return "–";
+  const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60);
+  return h ? `${h}h ${m}m` : `${m}m ${sec % 60}s`;
+}
+
+async function load() {
+  const ncols = headers();
+  let devices;
+  try {
+    const q = me.role === "admin" && $("filter").value === "unclaimed" ? "?unclaimed=true" : "";
+    devices = await api("/api/devices" + q);
+    showMsg($("listMsg"), "");
+  } catch (e) { showMsg($("listMsg"), e.message); return; }
+
+  const online = devices.filter(d => d.online).length;
+  $("count").textContent = `Stations (${devices.length}, ${online} online)`;
+
+  if (!devices.length) {
+    $("rows").innerHTML = `<tr><td class="empty" colspan="${ncols}">${me.role === "admin"
+      ? "No stations here yet. A station appears after its first reading."
+      : "No stations on your account yet. Add one above."}</td></tr>`;
+    return;
+  }
+  $("rows").innerHTML = devices.map(d => {
+    const link = "station.html?id=" + encodeURIComponent(d.id);
+    let extra = "";
+    if (me.role === "admin") {
+      extra = `<td>${d.owner_email ? esc(d.owner_email) : '<span class="muted">unassigned</span>'}</td>
+               <td class="mono">${esc(d.pairing_code || "–")}</td>`;
+    }
+    return `<tr>
+      <td><a href="${link}"><b>${esc(d.name || d.id)}</b></a>
+          <div class="muted">${esc(d.name ? d.id : "")}${d.location ? (d.name ? " · " : "") + esc(d.location) : ""}</div></td>
+      <td>${statePill(d.state)}</td>
+      <td>${ago(d.seconds_since_seen)}</td>
+      <td>${d.online ? dur(d.last_uptime_s) : "–"}</td>
+      <td class="mono">${esc(d.last_ip || "–")}</td>
+      ${extra}
+      <td class="actions"><a href="${link}">Open →</a></td>
+    </tr>`;
+  }).join("");
+}
+
+$("claimForm").onsubmit = async e => {
+  e.preventDefault();
+  const btn = e.submitter || e.target.querySelector("button"); btn.disabled = true;
+  try {
+    const d = await api("/api/devices/claim", { method: "POST",
+      body: { device_id: $("clId").value.trim(), pairing_code: $("clCode").value.trim().toUpperCase() } });
+    showMsg($("clMsg"), `Added ${d.id}.`, true);
+    $("claimForm").reset();
+    load();
+  } catch (err) { showMsg($("clMsg"), err.message); }
+  btn.disabled = false;
+};
+$("filter").onchange = load;
+
+(async () => {
+  me = await requireLogin({ active: "stations" });
+  if (me.role === "admin") {
+    $("title").textContent = "All stations";
+    $("filterBox").classList.remove("hidden");
+  } else {
+    $("claimBox").classList.remove("hidden");
+  }
+  await load();
+  setInterval(load, 3000);
+})();
+</script>
+</body>
+</html>

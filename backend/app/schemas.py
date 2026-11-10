@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class IngestPayload(BaseModel):
@@ -49,6 +49,9 @@ class DeviceOut(BaseModel):
     online: bool
     seconds_since_seen: float | None
     thresholds: Thresholds
+    owner_id: int | None = None
+    owner_email: str | None = None  # admins only
+    pairing_code: str | None = None  # admins only
 
 
 class ReadingOut(BaseModel):
@@ -87,3 +90,103 @@ class DeviceUpdate(BaseModel):
     location: str | None = None
     sag_v: float | None = Field(default=None, ge=0, le=26)
     over_voltage_v: float | None = Field(default=None, ge=0, le=26)
+
+
+# ---- Portal accounts -------------------------------------------------------------------------
+_EMAIL = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+
+
+class _Password(BaseModel):
+    @staticmethod
+    def check_strength(pw: str) -> str:
+        if len(pw.encode()) > 72:  # bcrypt ignores everything past 72 bytes
+            raise ValueError("password is too long (max 72 bytes)")
+        if not any(c.isalpha() for c in pw) or not any(c.isdigit() for c in pw):
+            raise ValueError("password needs at least one letter and one digit")
+        return pw
+
+
+class SignupIn(BaseModel):
+    email: str = Field(max_length=254, pattern=_EMAIL)
+    full_name: str = Field(min_length=1, max_length=128)
+    password: str = Field(min_length=8, max_length=72)
+
+    @field_validator("email")
+    @classmethod
+    def _lower(cls, v: str) -> str:
+        return v.strip().lower()
+
+    @field_validator("full_name")
+    @classmethod
+    def _name(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("name must not be blank")
+        return v.strip()
+
+    @field_validator("password")
+    @classmethod
+    def _pw(cls, v: str) -> str:
+        return _Password.check_strength(v)
+
+
+class LoginIn(BaseModel):
+    email: str = Field(max_length=254)
+    password: str = Field(max_length=200)
+
+    @field_validator("email")
+    @classmethod
+    def _lower(cls, v: str) -> str:
+        return v.strip().lower()
+
+
+class ChangePasswordIn(BaseModel):
+    current_password: str = Field(max_length=200)
+    new_password: str = Field(min_length=8, max_length=72)
+
+    @field_validator("new_password")
+    @classmethod
+    def _pw(cls, v: str) -> str:
+        return _Password.check_strength(v)
+
+
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: str
+    full_name: str
+    role: str
+    is_active: bool
+    created_at: datetime
+    last_login_at: datetime | None
+
+
+class AdminUserOut(UserOut):
+    device_count: int
+
+
+class AdminUserUpdate(BaseModel):
+    is_active: bool | None = None
+    full_name: str | None = Field(default=None, min_length=1, max_length=128)
+
+
+class ClaimIn(BaseModel):
+    device_id: str = Field(min_length=1, max_length=64)
+    pairing_code: str = Field(min_length=1, max_length=16)
+
+
+class AssignIn(BaseModel):
+    user_id: int | None  # None = take the station away from its host
+
+
+class AuditOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ts: datetime
+    user_id: int | None
+    user_email: str | None = None
+    action: str
+    target: str | None
+    detail: dict | None
+    client_ip: str | None

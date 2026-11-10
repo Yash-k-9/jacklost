@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Juice Guard – Log in</title>
+<link rel="stylesheet" href="common.css">
+<style>
+  main { max-width: 400px; padding-top: 56px; }
+  .brandbig { font-size: 24px; font-weight: 700; text-align: center; margin-bottom: 4px; }
+  .sub { text-align: center; margin-bottom: 18px; }
+  .tabs { margin-top: 0; }
+  form button.primary { width: 100%; margin-top: 16px; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="brandbig">⚡ Juice Guard</div>
+  <div class="sub">USB charging station monitor</div>
+
+  <div class="card">
+    <div class="tabs">
+      <button id="tabLogin" class="on" type="button">Log in</button>
+      <button id="tabSignup" type="button">Create account</button>
+    </div>
+
+    <form id="loginForm">
+      <label for="liEmail">Email</label>
+      <input id="liEmail" type="email" autocomplete="username" required>
+      <label for="liPw">Password</label>
+      <input id="liPw" type="password" autocomplete="current-password" required>
+      <button class="primary">Log in</button>
+      <div class="msg" id="liMsg"></div>
+    </form>
+
+    <form id="signupForm" class="hidden">
+      <label for="suName">Full name</label>
+      <input id="suName" autocomplete="name" required maxlength="128">
+      <label for="suEmail">Email</label>
+      <input id="suEmail" type="email" autocomplete="username" required>
+      <label for="suPw">Password</label>
+      <input id="suPw" type="password" autocomplete="new-password" required minlength="8" maxlength="72">
+      <div class="hint">At least 8 characters, with a letter and a digit.</div>
+      <label for="suPw2">Repeat password</label>
+      <input id="suPw2" type="password" autocomplete="new-password" required>
+      <button class="primary">Create account</button>
+      <div class="hint">This makes a station host account. You add stations with the station ID and
+        pairing code from the unit. Admin accounts are made by the server owner.</div>
+      <div class="msg" id="suMsg"></div>
+    </form>
+  </div>
+</main>
+
+<script src="common.js"></script>
+<script>
+// Only follow ?next= to a page on this site.
+function goNext() {
+  const next = new URLSearchParams(location.search).get("next") || "";
+  location.href = /^[\w\-]+\.html(\?[^#]*)?$/.test(next) ? next : "index.html";
+}
+
+function tab(which) {
+  const login = which === "login";
+  $("tabLogin").classList.toggle("on", login);
+  $("tabSignup").classList.toggle("on", !login);
+  $("loginForm").classList.toggle("hidden", !login);
+  $("signupForm").classList.toggle("hidden", login);
+}
+$("tabLogin").onclick = () => tab("login");
+$("tabSignup").onclick = () => tab("signup");
+
+// Already logged in? Skip the form.
+api("/api/auth/me", { redirectOn401: false }).then(goNext).catch(() => {});
+
+$("loginForm").onsubmit = async e => {
+  e.preventDefault();
+  const btn = e.submitter || e.target.querySelector("button"); btn.disabled = true; showMsg($("liMsg"), "");
+  try {
+    await api("/api/auth/login", { method: "POST", redirectOn401: false,
+      body: { email: $("liEmail").value, password: $("liPw").value } });
+    goNext();
+  } catch (err) { showMsg($("liMsg"), err.message); btn.disabled = false; }
+};
+
+$("signupForm").onsubmit = async e => {
+  e.preventDefault();
+  if ($("suPw").value !== $("suPw2").value) return showMsg($("suMsg"), "Passwords don't match.");
+  const btn = e.submitter || e.target.querySelector("button"); btn.disabled = true; showMsg($("suMsg"), "");
+  try {
+    await api("/api/auth/signup", { method: "POST", redirectOn401: false,
+      body: { full_name: $("suName").value, email: $("suEmail").value, password: $("suPw").value } });
+    goNext();
+  } catch (err) { showMsg($("suMsg"), err.message); btn.disabled = false; }
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Juice Guard – Admin</title>
+<link rel="stylesheet" href="common.css">
+<style>
+  td select { width: auto; min-width: 180px; padding: 4px 6px; }
+  .detail { font-size: 12px; color: var(--muted); max-width: 320px; overflow-wrap: anywhere; }
+  .filters .row > div { min-width: 120px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Admin</h1>
+  <div class="sub">Accounts, station assignment, pairing codes and the audit log.</div>
+
+  <div class="tabs">
+    <button data-tab="users" class="on">Accounts</button>
+    <button data-tab="stations">Stations</button>
+    <button data-tab="audit">Audit log</button>
+  </div>
+  <div class="msg" id="msg"></div>
+
+  <!-- Accounts -->
+  <section id="tab-users">
+    <div class="row" style="margin-bottom:10px">
+      <div style="max-width:220px">
+        <label for="roleFilter">Show</label>
+        <select id="roleFilter">
+          <option value="">All accounts</option>
+          <option value="host" selected>Station hosts</option>
+          <option value="admin">Admins</option>
+        </select>
+      </div>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Stations</th><th>Status</th><th>Last login</th><th></th></tr></thead>
+        <tbody id="userRows"><tr><td class="empty" colspan="7">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="muted" style="margin-top:8px">Deactivating an account logs it out at once and blocks new logins.
+      Admin accounts are made on the server with <span class="mono">scripts/create_admin.py</span>.</div>
+  </section>
+
+  <!-- Stations -->
+  <section id="tab-stations" class="hidden">
+    <div class="row" style="margin-bottom:10px">
+      <div style="max-width:260px">
+        <label for="stFilter">Show</label>
+        <select id="stFilter">
+          <option value="all">All stations</option>
+          <option value="unclaimed">Not assigned to a host</option>
+        </select>
+      </div>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Station</th><th>Status</th><th>Pairing code</th><th>Host</th><th></th></tr></thead>
+        <tbody id="stRows"><tr><td class="empty" colspan="5">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="muted" style="margin-top:8px">Give the station ID and pairing code to its host so they can add it themselves,
+      or pick the host here. A new pairing code does not change who owns the station.</div>
+  </section>
+
+  <!-- Audit -->
+  <section id="tab-audit" class="hidden">
+    <form id="auditForm" class="filters card" style="margin-bottom:12px">
+      <div class="row">
+        <div><label for="auUser">Account</label><select id="auUser"><option value="">Anyone</option></select></div>
+        <div><label for="auAction">Action</label>
+          <select id="auAction">
+            <option value="">Any</option>
+            <option>login</option><option>login_failed</option><option>signup</option><option>logout_all</option>
+            <option>password_changed</option><option>device_claimed</option><option>claim_failed</option>
+            <option>device_released</option><option>device_assigned</option><option>device_updated</option>
+            <option>command_sent</option><option>pairing_code_regenerated</option><option>user_updated</option>
+          </select></div>
+        <div><label for="auTarget">Target (station ID or email)</label><input id="auTarget"></div>
+        <div style="max-width:110px"><label for="auLimit">Rows</label>
+          <select id="auLimit"><option>50</option><option selected>200</option><option>1000</option></select></div>
+        <button class="primary">Filter</button>
+      </div>
+    </form>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Time</th><th>Account</th><th>Action</th><th>Target</th><th>Detail</th><th>IP</th></tr></thead>
+        <tbody id="auRows"><tr><td class="empty" colspan="6">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script src="common.js"></script>
+<script>
+let me, hosts = [], current = "users";
+
+const msg = (t, ok) => showMsg($("msg"), t, ok);
+
+// ---------------- tabs
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => showTab(b.dataset.tab));
+function showTab(name) {
+  current = name;
+  document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === name));
+  ["users", "stations", "audit"].forEach(t => $("tab-" + t).classList.toggle("hidden", t !== name));
+  msg("");
+  history.replaceState(null, "", "#" + name);
+  ({ users: loadUsers, stations: loadStations, audit: loadAudit })[name]();
+}
+
+// ---------------- accounts
+async function loadUsers() {
+  const role = $("roleFilter").value;
+  let users;
+  try { users = await api("/api/admin/users" + (role ? "?role=" + role : "")); }
+  catch (e) { return msg(e.message); }
+  if (!users.length) { $("userRows").innerHTML = `<tr><td class="empty" colspan="7">No accounts.</td></tr>`; return; }
+  $("userRows").innerHTML = users.map(u => `<tr>
+      <td><b>${esc(u.full_name)}</b></td>
+      <td>${esc(u.email)}</td>
+      <td>${u.role === "admin" ? "Admin" : "Host"}</td>
+      <td>${u.role === "host" ? u.device_count : "–"}</td>
+      <td><span class="pill ${u.is_active ? "ok" : "bad"}">${u.is_active ? "Active" : "Deactivated"}</span></td>
+      <td>${fmtTs(u.last_login_at)}</td>
+      <td class="actions">
+        <button data-rename="${u.id}">Rename</button>
+        ${u.id === me.id ? "" : `<button data-active="${u.id}" data-to="${!u.is_active}" class="${u.is_active ? "danger" : ""}">
+            ${u.is_active ? "Deactivate" : "Activate"}</button>`}
+      </td></tr>`).join("");
+
+  $("userRows").querySelectorAll("[data-active]").forEach(b => b.onclick = async () => {
+    const u = users.find(x => x.id == b.dataset.active), to = b.dataset.to === "true";
+    if (!to && !confirm(`Deactivate ${u.email}? They are logged out at once.`)) return;
+    try { await api(`/api/admin/users/${u.id}`, { method: "PATCH", body: { is_active: to } });
+          msg(`${u.email} ${to ? "activated" : "deactivated"}.`, true); loadUsers(); }
+    catch (e) { msg(e.message); }
+  });
+  $("userRows").querySelectorAll("[data-rename]").forEach(b => b.onclick = async () => {
+    const u = users.find(x => x.id == b.dataset.rename);
+    const name = prompt("New name for " + u.email, u.full_name);
+    if (!name || !name.trim() || name.trim() === u.full_name) return;
+    try { await api(`/api/admin/users/${u.id}`, { method: "PATCH", body: { full_name: name.trim() } });
+          msg("Renamed.", true); loadUsers(); }
+    catch (e) { msg(e.message); }
+  });
+}
+$("roleFilter").onchange = loadUsers;
+
+// ---------------- stations
+async function loadHosts() {
+  hosts = await api("/api/admin/users?role=host");
+}
+
+async function loadStations() {
+  let devices;
+  try {
+    await loadHosts();
+    devices = await api("/api/devices" + ($("stFilter").value === "unclaimed" ? "?unclaimed=true" : ""));
+  } catch (e) { return msg(e.message); }
+  if (!devices.length) {
+    $("stRows").innerHTML = `<tr><td class="empty" colspan="5">No stations. A station appears after its first reading.</td></tr>`;
+    return;
+  }
+  $("stRows").innerHTML = devices.map(d => {
+    const opts = [`<option value="">— nobody —</option>`].concat(hosts.map(h =>
+      `<option value="${h.id}" ${h.id === d.owner_id ? "selected" : ""}>${esc(h.full_name)} (${esc(h.email)})${h.is_active ? "" : " – deactivated"}</option>`));
+    return `<tr>
+      <td><a href="station.html?id=${encodeURIComponent(d.id)}"><b>${esc(d.name || d.id)}</b></a>
+          <div class="muted">${esc(d.name ? d.id : "")}${d.location ? (d.name ? " · " : "") + esc(d.location) : ""}</div></td>
+      <td>${statePill(d.state)} <div class="muted">${ago(d.seconds_since_seen)}</div></td>
+      <td class="mono">${esc(d.pairing_code || "–")}</td>
+      <td><select data-assign="${esc(d.id)}" data-was="${d.owner_id ?? ""}">${opts.join("")}</select></td>
+      <td class="actions"><button data-code="${esc(d.id)}">New pairing code</button></td>
+    </tr>`;
+  }).join("");
+
+  $("stRows").querySelectorAll("[data-assign]").forEach(sel => sel.onchange = async () => {
+    const id = sel.dataset.assign, userId = sel.value ? Number(sel.value) : null;
+    const who = userId ? sel.selectedOptions[0].textContent : "nobody";
+    if (!confirm(`Assign ${id} to ${who}?`)) { sel.value = sel.dataset.was; return; }
+    try { await api(`/api/admin/devices/${encodeURIComponent(id)}/assign`, { method: "POST", body: { user_id: userId } });
+          msg(`${id} assigned to ${who}.`, true); loadStations(); }
+    catch (e) { msg(e.message); sel.value = sel.dataset.was; }
+  });
+  $("stRows").querySelectorAll("[data-code]").forEach(b => b.onclick = async () => {
+    const id = b.dataset.code;
+    if (!confirm(`Make a new pairing code for ${id}? The old code stops working.`)) return;
+    try { const d = await api(`/api/admin/devices/${encodeURIComponent(id)}/pairing-code`, { method: "POST" });
+          msg(`New pairing code for ${id}: ${d.pairing_code}`, true); loadStations(); }
+    catch (e) { msg(e.message); }
+  });
+}
+$("stFilter").onchange = loadStations;
+
+// ---------------- audit
+async function loadAudit() {
+  try {
+    if ($("auUser").options.length === 1) {
+      const all = await api("/api/admin/users");
+      $("auUser").insertAdjacentHTML("beforeend",
+        all.map(u => `<option value="${u.id}">${esc(u.email)}</option>`).join(""));
+    }
+    const q = new URLSearchParams({ limit: $("auLimit").value });
+    if ($("auUser").value) q.set("user_id", $("auUser").value);
+    if ($("auAction").value) q.set("action", $("auAction").value);
+    if ($("auTarget").value.trim()) q.set("target", $("auTarget").value.trim());
+    const rows = await api("/api/admin/audit?" + q);
+    $("auRows").innerHTML = rows.length ? rows.map(r => `<tr>
+        <td style="white-space:nowrap">${fmtTs(r.ts)}</td>
+        <td>${esc(r.user_email || "–")}</td>
+        <td><span class="pill ${/failed/.test(r.action) ? "bad" : ""}">${esc(r.action)}</span></td>
+        <td class="mono">${esc(r.target || "")}</td>
+        <td class="detail mono">${r.detail ? esc(JSON.stringify(r.detail)) : ""}</td>
+        <td class="mono">${esc(r.client_ip || "")}</td>
+      </tr>`).join("") : `<tr><td class="empty" colspan="6">Nothing matches.</td></tr>`;
+  } catch (e) { msg(e.message); }
+}
+$("auditForm").onsubmit = e => { e.preventDefault(); loadAudit(); };
+
+(async () => {
+  me = await requireLogin({ adminOnly: true, active: "admin" });
+  const start = location.hash.slice(1);
+  showTab(["users", "stations", "audit"].includes(start) ? start : "users");
+})();
+</script>
+</body>
+</html>

@@ -5,34 +5,52 @@ Run from the backend/ folder:
 """
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
-from .api import devices, ingest
-from .db import init_db, utcnow
+from . import config
+from .api import admin, devices, ingest
+from .auth import routes as auth_routes
+from .auth.security import new_pairing_code
+from .db import SessionLocal, init_db, utcnow
+from .models import ROLE_ADMIN, Device, User
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("app")
 
 
+def _startup_checks() -> None:
+    with SessionLocal() as db:
+        # Stations registered before logins existed get a pairing code too.
+        for d in db.query(Device).filter(Device.pairing_code.is_(None)):
+            d.pairing_code = new_pairing_code()
+        db.commit()
+        if not db.query(User).filter(User.role == ROLE_ADMIN).first():
+            log.warning("No admin account yet. Create one: python scripts/create_admin.py")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    _startup_checks()
     log.info("Database ready. Waiting for stations on POST /api/ingest")
     yield
 
 
-app = FastAPI(title="Juice Guard - USB charging station monitor", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Juice Guard - USB charging station monitor", version="0.2.0", lifespan=lifespan)
 
-# The React dashboard (phase 4) runs on another port during development.
+# The React portals run on another port during development. Credentials = the login cookie.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=config.FRONTEND_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 
@@ -50,4 +68,13 @@ def health():
 
 
 app.include_router(ingest.router)
+app.include_router(auth_routes.router)
 app.include_router(devices.router)
+app.include_router(admin.router)
+
+
+# Simple status page (frontend/index.html) at http://<pc-ip>:8000/
+# Mounted last so it never shadows the /api routes.
+FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
+if FRONTEND_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

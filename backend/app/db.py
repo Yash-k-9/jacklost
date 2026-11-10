@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from . import config
@@ -31,3 +31,21 @@ def init_db() -> None:
     from . import models  # noqa: F401  (registers tables)
 
     Base.metadata.create_all(engine)
+    _add_missing_columns()
+
+
+# Columns added after the first release. create_all() never alters existing tables,
+# so an older juiceguard.db gets them here (no data is lost).
+_NEW_COLUMNS = {
+    "devices": {"owner_id": "INTEGER REFERENCES users(id)", "pairing_code": "VARCHAR(16)"},
+}
+
+
+def _add_missing_columns() -> None:
+    insp = inspect(engine)
+    with engine.begin() as conn:
+        for table, cols in _NEW_COLUMNS.items():
+            have = {c["name"] for c in insp.get_columns(table)}
+            for name, ddl in cols.items():
+                if name not in have:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))

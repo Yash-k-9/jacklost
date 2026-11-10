@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from .. import config
 from ..db import get_db, utcnow
+from ..auth.security import new_pairing_code
 from ..models import AuthFailure, Command, Device, Reading
 from ..schemas import IngestPayload, IngestReply
 from ..services import compute_state, thresholds_for
@@ -34,7 +35,7 @@ def ingest(
     now = utcnow()
     device = db.get(Device, payload.device_id)
     if device is None:  # auto-register new stations on first contact
-        device = Device(id=payload.device_id, first_seen=now)
+        device = Device(id=payload.device_id, first_seen=now, pairing_code=new_pairing_code())
         db.add(device)
         log.info("New station registered: %s from %s", payload.device_id, client_ip)
 

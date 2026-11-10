@@ -10,6 +10,7 @@ sends back thresholds and dashboard commands.
 ## Status
 - [x] Phase 1: ingest API, SQLite storage, API key auth, device registry, command queue
 - [x] Phase 2: multi-station simulator with fault/attack scenarios
+- [x] Portal logins: host sign-up, admin accounts, station ownership, audit log
 - [ ] Phase 3: detection engine (alerts, watchdog, sessions)
 - [ ] Phase 4: live React dashboard
 - [ ] Phases 5-8: settings UI, reports, hardening, demo
@@ -32,9 +33,20 @@ python -m venv .venv
 .venv\Scripts\python -m pip install -r backend\requirements.txt
 copy backend\.env.example backend\.env        # then edit DEVICE_API_KEY if needed
 cd backend
+..\.venv\Scripts\python scripts\create_admin.py     # first time only: makes the admin login
 ..\.venv\Scripts\python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 - API docs: http://127.0.0.1:8000/docs
+- Web portal: http://127.0.0.1:8000/ (or http://<PC-IP>:8000/ from a phone on the same Wi-Fi)
+
+### Web portal (`frontend/`, plain HTML, served by the backend)
+| Page | Who | What |
+|---|---|---|
+| `login.html` | anyone | log in, or create a station host account |
+| `index.html` | host / admin | live list of stations (hosts: their own + "Add station" with pairing code; admins: all, with host and pairing code) |
+| `station.html?id=…` | owner / admin | is it connected, sending now, continuously active (dropouts, reboots, 5-min timeline), latest reading, test commands, name/location/voltage limits, remove |
+| `account.html` | everyone | change password, log out everywhere |
+| `admin.html` | admin | accounts (activate/deactivate, rename), assign stations, new pairing codes, audit log |
 - Tests: `cd backend && ..\.venv\Scripts\python -m pytest -q`
 
 ### Connecting the real ESP32
@@ -54,11 +66,35 @@ Scenarios: normal, offline, dropout, reboot, unplug, sag, overvoltage, spike, un
 sensor_fault, reversed, tamper, bad_key, clone, garbage. The first station (`sim-01`) is the one
 that misbehaves. The rest stay normal.
 
-## API (phase 1)
+## Logins and roles
+- **End hosts** sign up at `POST /api/auth/signup` (active at once, no approval). A host adds
+  each of their stations with the station id + its 8-character pairing code (one host, many
+  stations). Hosts only ever see their own stations; anyone else's answers 404.
+- **Admins** are created only with `scripts/create_admin.py`. They see every host and station,
+  can assign stations, see pairing codes, deactivate hosts and read the audit log.
+- Sessions are an httpOnly cookie (`jg_session`, also accepted as `Authorization: Bearer`).
+  Passwords are bcrypt-hashed; 5 wrong passwords in 15 min blocks that email for a while.
+- Every portal endpoint needs a login. Only `/api/ingest` (station API key) and `/api/health` don't.
+
+| Method | Path | Who | Purpose |
+|---|---|---|---|
+| POST | `/api/auth/signup` | anyone | new end-host account, logs in |
+| POST | `/api/auth/login` / `logout` / `logout-all` | anyone / user | session |
+| GET | `/api/auth/me` | user | current account |
+| POST | `/api/auth/change-password` | user | also logs out other browsers |
+| POST | `/api/devices/claim` | host | `{device_id, pairing_code}` adds a station |
+| POST | `/api/devices/{id}/release` | owner, admin | removes it from the account |
+| GET | `/api/admin/users?role=host` | admin | accounts with station counts |
+| PATCH | `/api/admin/users/{id}` | admin | `is_active`, `full_name` |
+| POST | `/api/admin/devices/{id}/assign` | admin | `{user_id}` or `null` |
+| POST | `/api/admin/devices/{id}/pairing-code` | admin | new pairing code |
+| GET | `/api/admin/audit` | admin | who did what (`user_id`, `action`, `target` filters) |
+
+## Station API (login required, except ingest)
 | Method | Path | Purpose |
 |---|---|---|
 | POST | `/api/ingest` | station reading (header `X-API-Key`) → `{state, thresholds, commands}` |
-| GET | `/api/devices` | fleet with online/OFFLINE status (offline after 10 s of silence) |
+| GET | `/api/devices` | host: own stations; admin: all (`?owner_id=`, `?unclaimed=true`). Online/OFFLINE status (offline after 10 s of silence) |
 | GET | `/api/devices/{id}` | one station |
 | PATCH | `/api/devices/{id}` | name, location, `sag_v`, `over_voltage_v` |
 | GET | `/api/devices/{id}/readings?limit=100` | history, oldest → newest |

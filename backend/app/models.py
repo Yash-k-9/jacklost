@@ -1,6 +1,6 @@
-"""Database tables for phase 1.
+"""Database tables.
 
-alerts and sessions tables come in phase 3 (detection engine).
+Users own stations (one host -> many stations). Alerts come in phase 3.
 """
 from datetime import datetime
 
@@ -8,6 +8,25 @@ from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, Stri
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base, utcnow
+
+
+ROLE_ADMIN = "admin"
+ROLE_HOST = "host"
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String(254), unique=True, index=True)  # stored lowercase
+    full_name: Mapped[str] = mapped_column(String(128))
+    password_hash: Mapped[str] = mapped_column(String(128))
+    role: Mapped[str] = mapped_column(String(16), default=ROLE_HOST)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Bumped on password change / logout-everywhere: older tokens stop working.
+    token_version: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class Device(Base):
@@ -24,6 +43,10 @@ class Device(Base):
     state: Mapped[str] = mapped_column(String(32), default="UNKNOWN")
     # Per-device overrides, e.g. {"sag_v": 4.6}. Missing keys fall back to config defaults.
     thresholds: Mapped[dict | None] = mapped_column(JSON)
+    # The host who monitors this station (NULL = not claimed yet).
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
+    # A host needs the station id AND this code to claim it (shown to admins / printed on the unit).
+    pairing_code: Mapped[str | None] = mapped_column(String(16))
 
 
 class Reading(Base):
@@ -66,3 +89,28 @@ class AuthFailure(Base):
     ts: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
     client_ip: Mapped[str | None] = mapped_column(String(64))
     device_id_claimed: Mapped[str | None] = mapped_column(String(64))
+
+
+class LoginFailure(Base):
+    """Failed portal logins, used to slow down password guessing."""
+
+    __tablename__ = "login_failures"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ts: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    email: Mapped[str] = mapped_column(String(254), index=True)
+    client_ip: Mapped[str | None] = mapped_column(String(64))
+
+
+class AuditLog(Base):
+    """Who did what in the portals: logins, commands, threshold changes, claims."""
+
+    __tablename__ = "audit_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ts: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
+    action: Mapped[str] = mapped_column(String(48), index=True)
+    target: Mapped[str | None] = mapped_column(String(128))
+    detail: Mapped[dict | None] = mapped_column(JSON)
+    client_ip: Mapped[str | None] = mapped_column(String(64))

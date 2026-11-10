@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Juice Guard – Station Check</title>
+<link rel="stylesheet" href="common.css">
+<style>
+  main { max-width: 820px; }
+  .back { font-size: 13px; text-decoration: none; }
+  .verdict { margin: 20px 0; padding: 18px 20px; border-radius: 10px; background: var(--card);
+             border: 1px solid var(--border); border-left: 6px solid var(--unknown); }
+  .verdict h2 { margin: 0 0 4px; font-size: 20px; }
+  .verdict p { margin: 0; color: var(--muted); }
+  .verdict.ok { border-left-color: var(--ok); } .verdict.warn { border-left-color: var(--warn); }
+  .verdict.bad { border-left-color: var(--bad); }
+
+  .checks { display: grid; gap: 10px; }
+  .check { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center;
+           background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--unknown); justify-self: center; }
+  .ok .dot { background: var(--ok); } .warn .dot { background: var(--warn); } .bad .dot { background: var(--bad); }
+  .check b { display: block; }
+  .check span { color: var(--muted); font-size: 13px; }
+  .tag { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; color: #fff; background: var(--unknown); }
+  .ok .tag { background: var(--ok); } .warn .tag { background: var(--warn); } .bad .tag { background: var(--bad); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .stat small { color: var(--muted); display: block; font-size: 12px; }
+  .stat strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+
+  .timeline { display: flex; gap: 2px; height: 26px; align-items: stretch; background: var(--card);
+              border: 1px solid var(--border); border-radius: 8px; padding: 4px; }
+  .timeline i { flex: 1; border-radius: 2px; background: var(--ok); }
+  .timeline i.gap { background: var(--bad); }
+  .timeline i.none { background: var(--border); }
+  .legend { color: var(--muted); font-size: 12px; margin-top: 6px; }
+  .btnrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="index.html">← All stations</a>
+  <h1 id="title" style="margin-top:6px">Station check</h1>
+  <div class="sub" id="subtitle">Is the station connected, sending data and staying active? Refreshes every 2 s.</div>
+
+  <section id="verdict" class="verdict">
+    <h2>Checking…</h2>
+    <p>Contacting the server.</p>
+  </section>
+
+  <section class="checks">
+    <div class="check" id="c-server"><div class="dot"></div><div><b>Server reachable</b><span>–</span></div><div class="tag">…</div></div>
+    <div class="check" id="c-known"><div class="dot"></div><div><b>Station has connected to the server</b><span>–</span></div><div class="tag">…</div></div>
+    <div class="check" id="c-online"><div class="dot"></div><div><b>Sending data right now</b><span>–</span></div><div class="tag">…</div></div>
+    <div class="check" id="c-steady"><div class="dot"></div><div><b>Continuously active</b><span>–</span></div><div class="tag">…</div></div>
+    <div class="check" id="c-health"><div class="dot"></div><div><b>Readings look healthy</b><span>–</span></div><div class="tag">…</div></div>
+  </section>
+
+  <h2>Activity – last 5 minutes</h2>
+  <div class="timeline" id="timeline"></div>
+  <div class="legend">Each bar is 10 s. Green = data received, red = no data in that slot, grey = before the station first connected.</div>
+
+  <h2>Latest reading</h2>
+  <div class="grid">
+    <div class="stat"><small>Voltage</small><strong id="s-v">–</strong></div>
+    <div class="stat"><small>Current</small><strong id="s-i">–</strong></div>
+    <div class="stat"><small>Power</small><strong id="s-p">–</strong></div>
+    <div class="stat"><small>State</small><strong id="s-state">–</strong></div>
+    <div class="stat"><small>Wi-Fi signal</small><strong id="s-rssi">–</strong></div>
+    <div class="stat"><small>Station uptime</small><strong id="s-up">–</strong></div>
+    <div class="stat"><small>Last seen</small><strong id="s-seen">–</strong></div>
+    <div class="stat"><small>Station IP</small><strong id="s-ip">–</strong></div>
+  </div>
+
+  <div id="controls" class="hidden">
+    <h2>Test the station</h2>
+    <div class="card">
+      <div class="btnrow">
+        <button id="blink">Blink station LED</button>
+        <button id="simData">Simulated data attempt (demo)</button>
+      </div>
+      <div class="muted" style="margin-top:6px">Commands reach the station with its next reading (within ~2 s) if it is online.
+        The data-attempt button is a demo only: D+/D- are physically cut, so there is nothing real to detect.</div>
+      <div class="msg" id="cmdMsg"></div>
+    </div>
+
+    <h2>Settings</h2>
+    <form id="settings" class="card">
+      <div class="row">
+        <div><label for="fName">Name</label><input id="fName" maxlength="128" placeholder="e.g. Library desk"></div>
+        <div><label for="fLoc">Location</label><input id="fLoc" maxlength="128" placeholder="e.g. 2nd floor"></div>
+      </div>
+      <div class="row">
+        <div><label for="fSag">Low-voltage alert below (V)</label><input id="fSag" type="number" step="0.01" min="0" max="26" required></div>
+        <div><label for="fOver">High-voltage alert above (V)</label><input id="fOver" type="number" step="0.01" min="0" max="26" required></div>
+      </div>
+      <div class="muted" style="margin-top:6px">The station picks up new voltage limits with its next reading.</div>
+      <button class="primary" style="margin-top:12px">Save settings</button>
+      <div class="msg" id="setMsg"></div>
+    </form>
+
+    <h2>Remove station</h2>
+    <div class="card">
+      <div class="muted" id="releaseText">Removes this station from the host's account. It keeps sending data;
+        someone with the pairing code can add it again.</div>
+      <button id="release" class="danger" style="margin-top:10px">Remove from account</button>
+      <div class="msg" id="relMsg"></div>
+    </div>
+  </div>
+</main>
+
+<script src="common.js"></script>
+<script>
+const POLL_MS = 2000;
+const SEND_EVERY_S = 2;         // firmware SEND_INTERVAL_MS
+const GAP_S = 6;                // > 3 missed sends counts as a dropout
+const WINDOW_S = 300;           // look at the last 5 minutes
+const SLOT_S = 10;
+
+const deviceId = new URLSearchParams(location.search).get("id");
+const devPath = "/api/devices/" + encodeURIComponent(deviceId || "");
+let me, settingsLoaded = false;
+
+function setCheck(id, level, tag, detail) {
+  const el = $(id);
+  el.className = "check " + level;
+  el.querySelector(".tag").textContent = tag;
+  el.querySelector("span").textContent = detail;
+}
+
+function setVerdict(level, title, text) {
+  const v = $("verdict");
+  v.className = "verdict " + level;
+  v.querySelector("h2").textContent = title;
+  v.querySelector("p").textContent = text;
+}
+
+function dur(sec) {
+  if (sec == null) return "–";
+  const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+  return h ? `${h}h ${m}m` : m ? `${m}m ${s}s` : `${s}s`;
+}
+
+function resetRest(from) {
+  const ids = ["c-server", "c-known", "c-online", "c-steady", "c-health"];
+  ids.slice(ids.indexOf(from)).forEach(id => setCheck(id, "", "–", "Not checked"));
+  $("timeline").innerHTML = "";
+  ["s-v","s-i","s-p","s-state","s-rssi","s-up","s-seen","s-ip"].forEach(id => $(id).textContent = "–");
+  $("controls").classList.add("hidden");
+}
+
+// Looks at reading timestamps: dropouts (gaps) and reboots (uptime went down).
+function analyse(readings, serverNow, firstSeen) {
+  const recent = readings.filter(r => (serverNow - parseTs(r.ts)) / 1000 <= WINDOW_S);
+  let gaps = 0, longest = 0, reboots = 0;
+  for (let i = 1; i < recent.length; i++) {
+    const d = (parseTs(recent[i].ts) - parseTs(recent[i - 1].ts)) / 1000;
+    if (d > GAP_S) { gaps++; longest = Math.max(longest, d); }
+    const a = recent[i - 1].uptime_s, b = recent[i].uptime_s;
+    if (a != null && b != null && b < a) reboots++;
+  }
+  const slots = [];
+  for (let k = WINDOW_S / SLOT_S - 1; k >= 0; k--) {
+    const end = serverNow - k * SLOT_S * 1000, start = end - SLOT_S * 1000;
+    if (end <= firstSeen) { slots.push(null); continue; }   // station did not exist yet
+    slots.push(recent.some(r => { const t = parseTs(r.ts); return t > start && t <= end; }));
+  }
+  // Only expect readings since the station first connected (if that is inside the window).
+  const spanS = Math.min(WINDOW_S, Math.max(SEND_EVERY_S, (serverNow - firstSeen) / 1000));
+  return { recent, gaps, longest, reboots, slots,
+           coverage: Math.min(100, recent.length / (spanS / SEND_EVERY_S) * 100) };
+}
+
+function fillSettings(dev) {
+  if (settingsLoaded) return;          // don't overwrite what the user is typing
+  settingsLoaded = true;
+  $("fName").value = dev.name || "";
+  $("fLoc").value = dev.location || "";
+  $("fSag").value = dev.thresholds.sag_v;
+  $("fOver").value = dev.thresholds.over_voltage_v;
+  if (me.role === "admin") {
+    $("releaseText").textContent = dev.owner_email
+      ? `Takes this station away from ${dev.owner_email}. It keeps sending data. You can also reassign it on the Admin page.`
+      : "This station is not on any host's account.";
+    $("release").disabled = !dev.owner_email;
+  }
+}
+
+async function refresh() {
+  // 1. server
+  let health;
+  try {
+    health = await api("/api/health");
+    setCheck("c-server", "ok", "YES", "Backend is running.");
+  } catch (e) {
+    setCheck("c-server", "bad", "NO", "Cannot reach the backend. Is uvicorn running?");
+    resetRest("c-known");
+    setVerdict("bad", "Server down", "The dashboard cannot reach the backend, so the station cannot either.");
+    return;
+  }
+  const serverNow = parseTs(health.server_time);
+
+  // 2. station known (and visible to this account)
+  let dev;
+  try {
+    dev = await api(devPath);
+  } catch (e) {
+    resetRest("c-online");
+    if (e.status === 404) {
+      const hint = me.role === "admin"
+        ? "It has never sent a reading. Check Wi-Fi, SERVER_URL and API_KEY in the sketch."
+        : "It is not on your account, or it has never sent a reading. Add it on the Stations page with its pairing code.";
+      setCheck("c-known", "bad", "NO", hint);
+      setVerdict("bad", "Station not found", `No station "${deviceId}" here.`);
+    } else {
+      setCheck("c-known", "bad", "ERROR", e.message);
+      setVerdict("bad", "Error", e.message);
+    }
+    return;
+  }
+  $("title").textContent = dev.name ? `${dev.name} (${dev.id})` : dev.id;
+  document.title = `Juice Guard – ${dev.name || dev.id}`;
+  $("subtitle").textContent = [dev.location, me.role === "admin" ? (dev.owner_email ? "host: " + dev.owner_email : "unassigned") : null,
+    "refreshes every 2 s"].filter(Boolean).join(" · ");
+  setCheck("c-known", "ok", "YES", `First seen ${fmtTs(dev.first_seen)} · source: ${dev.source || "?"}`);
+  $("controls").classList.remove("hidden");
+  fillSettings(dev);
+
+  // 3. sending now
+  const since = dev.seconds_since_seen;
+  if (dev.online) setCheck("c-online", "ok", "YES", `Last reading ${ago(since)}.`);
+  else setCheck("c-online", "bad", "NO", `Last reading ${ago(since)}. Station is OFFLINE (silent > 10 s).`);
+
+  // 4. continuity
+  const readings = await api(`${devPath}/readings?limit=${WINDOW_S / SEND_EVERY_S + 20}`);
+  const a = analyse(readings, serverNow, parseTs(dev.first_seen));
+  $("timeline").innerHTML = a.slots.map(ok => `<i class="${ok === null ? "none" : ok ? "" : "gap"}"></i>`).join("");
+
+  let steady;
+  if (a.recent.length === 0) {
+    steady = "bad";
+    setCheck("c-steady", "bad", "NO", "No data at all in the last 5 minutes.");
+  } else {
+    const parts = [`${a.recent.length} readings (${a.coverage.toFixed(0)}% of expected)`];
+    if (a.gaps) parts.push(`${a.gaps} dropout(s), longest ${Math.round(a.longest)} s`);
+    if (a.reboots) parts.push(`${a.reboots} reboot(s)`);
+    steady = !a.gaps && !a.reboots && a.coverage >= 90 && dev.online ? "ok"
+           : (a.gaps <= 2 && !a.reboots && dev.online ? "warn" : "bad");
+    setCheck("c-steady", steady, steady === "ok" ? "YES" : steady === "warn" ? "MOSTLY" : "NO",
+      parts.join(" · ") + " in last 5 min.");
+  }
+
+  // 5. reading health
+  const last = readings[readings.length - 1];
+  let healthLevel = "";
+  if (last) {
+    const t = dev.thresholds;
+    const msgs = {
+      CHARGING: ["ok", "OK", "Phone is charging normally."],
+      IDLE: ["ok", "OK", "Charger present, no phone drawing current."],
+      NO_SUPPLY: ["warn", "NO POWER", "Charger voltage below 1 V – charger unplugged?"],
+      ALERT: ["bad", "ALERT", `Station reports ${last.device_alert} (limits ${t.sag_v}–${t.over_voltage_v} V).`],
+      TAMPER: ["bad", "TAMPER", "Station says data lines are NOT blocked – firmware modified?"],
+    };
+    const [lvl, tag, txt] = msgs[last.state] || ["warn", last.state, "Unknown state."];
+    healthLevel = dev.online ? lvl : "";
+    setCheck("c-health", healthLevel, tag, (dev.online ? "" : `Last known (${ago(since)}): `) + txt
+      + (last.current_ma < -5 ? " Negative current: VIN+/VIN- may be swapped." : ""));
+
+    $("s-v").textContent = last.voltage_v.toFixed(3) + " V";
+    $("s-i").textContent = last.current_ma.toFixed(1) + " mA";
+    $("s-p").textContent = last.power_mw.toFixed(1) + " mW";
+    $("s-rssi").textContent = last.rssi != null ? last.rssi + " dBm" : "–";
+    $("s-up").textContent = dur(last.uptime_s);
+  } else {
+    setCheck("c-health", "", "–", "No readings stored yet.");
+  }
+  $("s-state").textContent = dev.state;
+  $("s-seen").textContent = ago(since);
+  $("s-ip").textContent = dev.last_ip || "–";
+
+  // verdict
+  const label = dev.name || dev.id;
+  if (!dev.online) setVerdict("bad", "Not working – offline",
+    `${label} stopped sending data ${ago(since)}. Check power, Wi-Fi and the Serial Monitor.`);
+  else if (healthLevel === "bad") setVerdict("bad", "Connected, but reporting a problem", $("c-health").querySelector("span").textContent);
+  else if (steady !== "ok" || healthLevel === "warn") setVerdict("warn", "Working, with issues",
+    "The station is sending data now, but see the warnings below.");
+  else setVerdict("ok", "Working", `${label} is connected, sending data every ~2 s and has been continuously active.`);
+}
+
+let timer;
+async function loop() {
+  clearTimeout(timer);
+  try { await refresh(); } catch (e) { if (e.status !== 401) setVerdict("bad", "Error", e.message); }
+  timer = setTimeout(loop, POLL_MS);
+}
+
+async function sendCommand(name, okText) {
+  showMsg($("cmdMsg"), "Sending…", true);
+  try {
+    await api(devPath + "/commands", { method: "POST", body: { name } });
+    showMsg($("cmdMsg"), okText, true);
+  } catch (e) { showMsg($("cmdMsg"), e.message); }
+}
+$("blink").onclick = () => sendCommand("blink_led", "Queued. The LED blinks 5 times on the next reading.");
+$("simData").onclick = () => sendCommand("sim_data_attempt",
+  "Queued. The station prints a [SIMULATED] line and blinks twice. This is a demo, not a detection.");
+
+$("settings").onsubmit = async e => {
+  e.preventDefault();
+  const sag = parseFloat($("fSag").value), over = parseFloat($("fOver").value);
+  if (!(sag < over)) return showMsg($("setMsg"), "The low-voltage limit must be lower than the high-voltage limit.");
+  const btn = e.submitter || e.target.querySelector("button"); btn.disabled = true;
+  try {
+    await api(devPath, { method: "PATCH",
+      body: { name: $("fName").value.trim(), location: $("fLoc").value.trim(), sag_v: sag, over_voltage_v: over } });
+    showMsg($("setMsg"), "Saved.", true);
+    loop();
+  } catch (err) { showMsg($("setMsg"), err.message); }
+  btn.disabled = false;
+};
+
+$("release").onclick = async () => {
+  if (!confirm(`Remove ${deviceId} from the account? The pairing code is needed to add it again.`)) return;
+  try {
+    await api(devPath + "/release", { method: "POST" });
+    location.href = "index.html";
+  } catch (e) { showMsg($("relMsg"), e.message); }
+};
+
+(async () => {
+  if (!deviceId) { location.href = "index.html"; return; }
+  me = await requireLogin({ active: "stations" });
+  loop();
+})();
+</script>
+</body>
+</html>
