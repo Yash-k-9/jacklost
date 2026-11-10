@@ -25,6 +25,8 @@ def device_out(d: Device, viewer: User, db: Session) -> DeviceOut:
     online = is_online(d)
     admin = viewer.role == ROLE_ADMIN
     owner = db.get(User, d.owner_id) if (admin and d.owner_id) else None
+    recent = db.scalars(select(Reading).where(Reading.device_id == d.id).order_by(Reading.id.desc()).limit(40)).all()
+    last = recent[0] if recent else None
     return DeviceOut(
         id=d.id, name=d.name, location=d.location, source=d.source,
         first_seen=d.first_seen, last_seen=d.last_seen, last_ip=d.last_ip,
@@ -37,6 +39,12 @@ def device_out(d: Device, viewer: User, db: Session) -> DeviceOut:
         owner_email=owner.email if owner else None,
         pairing_code=d.pairing_code if admin else None,
         added_at=d.added_at,
+        voltage_v=last.voltage_v if last else None,
+        current_ma=last.current_ma if last else None,
+        power_mw=last.power_mw if last else None,
+        data_blocked=last.data_blocked if last else None,
+        rssi=last.rssi if last else None,
+        power_history=[r.power_mw for r in reversed(recent)],
     )
 
 

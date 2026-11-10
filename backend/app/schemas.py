@@ -53,6 +53,13 @@ class DeviceOut(BaseModel):
     owner_email: str | None = None  # admins only
     pairing_code: str | None = None  # admins only
     added_at: datetime | None = None  # when its current host added it
+    # Latest reading, so lists can show live numbers without a second request.
+    voltage_v: float | None = None
+    current_ma: float | None = None
+    power_mw: float | None = None
+    data_blocked: bool | None = None
+    rssi: int | None = None
+    power_history: list[float] = []  # last 40 readings, oldest first (sparklines)
 
 
 class ReadingOut(BaseModel):

@@ -76,5 +76,19 @@ app.include_router(admin.router)
 # Simple status page (frontend/index.html) at http://<pc-ip>:8000/
 # Mounted last so it never shadows the /api routes.
 FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
+
+
+class _FreshStaticFiles(StaticFiles):
+    """Portal pages: browsers must re-check every load, so an updated page shows at once.
+
+    Unchanged files still answer 304 Not Modified (ETag), so this costs almost nothing.
+    """
+
+    def file_response(self, *args, **kwargs):
+        resp = super().file_response(*args, **kwargs)
+        resp.headers["Cache-Control"] = "no-cache"
+        return resp
+
+
 if FRONTEND_DIR.is_dir():
-    app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+    app.mount("/", _FreshStaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

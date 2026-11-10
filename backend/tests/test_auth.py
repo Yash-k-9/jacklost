@@ -262,3 +262,24 @@ def test_add_station_refuses_taken_ids_bad_ids_and_admins(client, admin, new_cli
 
 def test_station_list_is_still_login_only(client):
     assert client.post("/api/devices", json={"device_id": "st-x"}).status_code == 401
+
+
+def test_portal_pages_are_never_served_stale(client):
+    for path in ("/", "/common.css", "/common.js"):
+        r = client.get(path)
+        assert r.status_code == 200 and r.headers["cache-control"] == "no-cache", path
+
+
+def test_station_list_includes_latest_reading(client, admin):
+    sid, _ = station(client, admin)
+    client.post("/api/ingest", json=payload(device_id=sid, voltage_v=5.11, current_ma=900.0, power_mw=4599.0), headers=KEY)
+    d = admin.get(f"/api/devices/{sid}").json()
+    assert (d["voltage_v"], d["current_ma"], d["power_mw"]) == (5.11, 900.0, 4599.0)
+
+
+def test_station_list_has_shield_signal_and_history(client, admin):
+    sid, _ = station(client, admin)
+    client.post("/api/ingest", json=payload(device_id=sid, power_mw=1000.0, rssi=-70, data_blocked=False), headers=KEY)
+    d = admin.get(f"/api/devices/{sid}").json()
+    assert d["data_blocked"] is False and d["rssi"] == -70
+    assert d["power_history"][-1] == 1000.0 and len(d["power_history"]) == 2
