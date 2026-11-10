@@ -4,32 +4,45 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Juice Guard – Account</title>
-<link rel="stylesheet" href="common.css">
-<style> main { max-width: 560px; } .card { margin-top: 16px; } dl { display: grid; grid-template-columns: 130px 1fr; gap: 6px 12px; margin: 0; } dt { color: var(--muted); } dd { margin: 0; } </style>
+<link rel="stylesheet" href="common.css?v=3">
+<style>
+  main { max-width: 760px; }
+  .profile { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .profile h2 { margin: 0; font-size: 20px; }
+  dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin: 18px 0 0;
+       padding-top: 18px; border-top: 1px solid var(--border); }
+  dt { color: var(--muted); font-size: 12.5px; font-weight: 550; } dd { margin: 2px 0 0; font-weight: 550; }
+  .grid2 { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-items: start; margin-top: 16px; }
+  .grid2 .card + .card { margin-top: 0; }
+  @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
+</style>
 </head>
 <body>
 <main>
-  <h1>Account</h1>
+  <div class="page-head"><div><h1>Account</h1><div class="sub">Your profile and sign-in security.</div></div></div>
 
   <section class="card">
+    <div class="profile">
+      <span id="aAvatar"></span>
+      <div><h2 id="aName">–</h2><div class="muted" id="aEmail">–</div></div>
+      <span class="chip" id="aRole" style="margin-left:auto">–</span>
+    </div>
     <dl>
-      <dt>Name</dt><dd id="aName">–</dd>
-      <dt>Email</dt><dd id="aEmail">–</dd>
-      <dt>Role</dt><dd id="aRole">–</dd>
-      <dt>Member since</dt><dd id="aCreated">–</dd>
-      <dt>Last login</dt><dd id="aLast">–</dd>
+      <div><dt>Member since</dt><dd id="aCreated">–</dd></div>
+      <div><dt>Last login</dt><dd id="aLast">–</dd></div>
     </dl>
   </section>
 
+  <div class="grid2">
   <section class="card">
-    <b>Change password</b>
+    <div class="card-title">Change password</div>
     <div class="muted">This also logs you out on every other browser.</div>
     <form id="pwForm">
       <label for="pwCur">Current password</label>
       <input id="pwCur" type="password" autocomplete="current-password" required>
       <label for="pwNew">New password</label>
       <input id="pwNew" type="password" autocomplete="new-password" required minlength="8" maxlength="72">
-      <div class="muted" style="margin-top:4px">At least 8 characters, with a letter and a digit.</div>
+      <div class="hint">At least 8 characters, with a letter and a digit.</div>
       <label for="pwNew2">Repeat new password</label>
       <input id="pwNew2" type="password" autocomplete="new-password" required>
       <button class="primary" style="margin-top:14px">Change password</button>
@@ -38,17 +51,19 @@
   </section>
 
   <section class="card">
-    <b>Log out everywhere</b>
+    <div class="card-title">Log out everywhere</div>
     <div class="muted">Ends your session on every browser and device, including this one.</div>
     <button id="logoutAll" class="danger" style="margin-top:10px">Log out everywhere</button>
     <div class="msg" id="loMsg"></div>
   </section>
+  </div>
 </main>
 
-<script src="common.js"></script>
+<script src="common.js?v=3"></script>
 <script>
 (async () => {
   const me = await requireLogin({ active: "account" });
+  $("aAvatar").innerHTML = avatar(me.full_name, me.email, "lg");
   $("aName").textContent = me.full_name;
   $("aEmail").textContent = me.email;
   $("aRole").textContent = me.role === "admin" ? "Administrator" : "Station host";

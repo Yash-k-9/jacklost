@@ -4,114 +4,277 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Juice Guard – Stations</title>
-<link rel="stylesheet" href="common.css">
+<link rel="stylesheet" href="common.css?v=3">
+<style>
+  /* ---- hero control deck ---- */
+  .deck { position: relative; display: grid; grid-template-columns: 1.35fr 1fr; gap: 18px; margin-bottom: 30px; }
+  .deck-main { position: relative; overflow: hidden; padding: 26px 28px; border-radius: 24px; border: 1px solid var(--border);
+               background: radial-gradient(600px 260px at 0% 0%, rgba(200, 255, 61, .12), transparent 60%),
+                           linear-gradient(180deg, var(--surface-2), var(--surface)); box-shadow: var(--shadow-lg); }
+  .deck-main::after { content: ""; position: absolute; right: -60px; bottom: -80px; width: 280px; height: 280px; opacity: .06;
+                      background: currentColor; -webkit-mask: var(--bolt) center / contain no-repeat; mask: var(--bolt) center / contain no-repeat;
+                      color: var(--volt); pointer-events: none; }
+  .deck-main h1 { margin-top: 10px; }
+  .watts { display: flex; align-items: baseline; gap: 10px; margin: 22px 0 4px; }
+  .watts b { font: 700 64px/0.95 var(--display); letter-spacing: -.05em; font-variant-numeric: tabular-nums; color: var(--volt);
+             text-shadow: 0 0 40px var(--volt-glow); }
+  .watts span { font: 600 20px var(--display); color: var(--muted); }
+  .deck-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 22px; }
+  .mini { flex: 1; min-width: 120px; padding: 12px 14px; border-radius: 14px; background: rgba(0, 0, 0, .3); border: 1px solid var(--border); }
+  .mini small { display: block; font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .mini b { font: 700 22px var(--display); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .mini b em { font-style: normal; color: var(--muted); font-weight: 500; font-size: 15px; }
+
+  .deck-shield { display: flex; flex-direction: column; justify-content: space-between; gap: 18px; padding: 24px 26px; border-radius: 24px;
+                 border: 1px solid rgba(56, 225, 255, .18); box-shadow: var(--shadow-lg);
+                 background: radial-gradient(420px 220px at 100% 0%, rgba(56, 225, 255, .14), transparent 65%),
+                             linear-gradient(180deg, var(--surface-2), var(--surface)); }
+  .deck-shield.bad { border-color: rgba(255, 84, 104, .3);
+                     background: radial-gradient(420px 220px at 100% 0%, rgba(255, 84, 104, .16), transparent 65%), linear-gradient(180deg, var(--surface-2), var(--surface)); }
+  .deck-shield.idle { border-color: var(--border); }
+  .shield-big { width: 62px; height: 62px; border-radius: 18px; display: grid; place-items: center; color: var(--shield);
+                background: var(--shield-dim); border: 1px solid rgba(56, 225, 255, .3); box-shadow: 0 0 36px -8px rgba(56, 225, 255, .5); }
+  .shield-big svg { width: 32px; height: 32px; }
+  .deck-shield.bad .shield-big { color: var(--bad); background: var(--bad-soft); border-color: rgba(255, 84, 104, .35); box-shadow: 0 0 36px -8px rgba(255, 84, 104, .55); }
+  .deck-shield.idle .shield-big { color: var(--muted); background: var(--surface-3); border-color: var(--border); box-shadow: none; }
+  .deck-shield h3 { font: 600 20px/1.25 var(--display); letter-spacing: -.02em; margin: 14px 0 6px; }
+  .deck-shield p { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .lines { display: flex; gap: 6px; }
+  .lines span { flex: 1; padding: 9px 10px; border-radius: 10px; background: rgba(0, 0, 0, .3); border: 1px solid var(--border);
+                font: 600 11px var(--mono); letter-spacing: .06em; color: var(--muted); }
+  .lines span b { display: block; color: var(--text); font-size: 12.5px; margin-top: 2px; }
+  .lines .cut b { color: var(--shield); } .lines .live-pwr b { color: var(--volt); } .lines .open b { color: var(--bad); }
+
+  /* ---- add panel ---- */
+  #addPanel { margin-bottom: 18px; border-color: rgba(200, 255, 61, .25); }
+  #addPanel .row > div { min-width: 180px; }
+  .bay-wait { margin-top: 10px; font: 500 11.5px var(--mono); color: var(--warn); }
+
+  /* ---- admin: host panels ---- */
+  .toolbar select { width: auto; min-width: 240px; }
+  .hostpanel { margin-top: 14px; border-radius: 20px; border: 1px solid var(--border); overflow: hidden;
+               background: linear-gradient(180deg, var(--surface-2), var(--surface)); box-shadow: var(--shadow); }
+  .hostpanel > header { display: flex; align-items: center; gap: 14px; padding: 14px 18px; cursor: pointer; user-select: none; }
+  .hostpanel > header:hover { background: rgba(255, 255, 255, .02); }
+  .hostpanel .avatar { width: 40px; height: 40px; border-radius: 13px; }
+  .hostpanel .who-txt { min-width: 0; flex: 1; }
+  .hostpanel .who-txt b { display: block; font: 600 15.5px var(--display); overflow-wrap: anywhere; }
+  .hostpanel .who-txt span { font-size: 12.5px; color: var(--muted); }
+  .hp-stats { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .hp-stat { padding: 6px 10px; border-radius: 10px; background: rgba(0, 0, 0, .3); border: 1px solid var(--border); text-align: right; min-width: 64px; }
+  .hp-stat small { display: block; font: 600 9.5px var(--mono); letter-spacing: .12em; color: var(--muted); text-transform: uppercase; }
+  .hp-stat b { font: 700 15px var(--display); font-variant-numeric: tabular-nums; }
+  .hp-stat.volt b { color: var(--volt); } .hp-stat.bad b { color: var(--bad); }
+  .chev { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; color: var(--muted); flex: none;
+          border: 1px solid var(--border); transition: transform .2s; }
+  .chev svg { width: 14px; height: 14px; }
+  .hostpanel.collapsed .chev { transform: rotate(-90deg); }
+  .hostpanel.collapsed > .body { display: none; }
+  .hostpanel > .body { padding: 4px 18px 18px; }
+  .hostpanel.unassigned { border-style: dashed; }
+  @media (max-width: 720px) { .hostpanel > header { flex-wrap: wrap; } .hp-stats { order: 3; flex-basis: 100%; justify-content: flex-start; } }
+
+  @media (max-width: 860px) { .deck { grid-template-columns: 1fr; } .watts b { font-size: 52px; } }
+</style>
 </head>
 <body>
 <main>
-  <h1 id="title">My stations</h1>
-  <div class="sub" id="subtitle">Live status, refreshes every 3 s. Click a station for the full check.</div>
+  <!-- host: control deck -->
+  <section class="deck hidden" id="deck">
+    <div class="deck-main">
+      <div class="eyebrow"><span id="dEyebrow">Control deck</span> · <span class="live" style="font-size:11px">live</span></div>
+      <h1 id="greet">Your stations</h1>
+      <div class="watts"><b id="dWatts">0.00</b><span id="dWattsLabel">W delivered right now</span></div>
+      <div class="deck-row">
+        <div class="mini hidden" id="dHostsBox"><small>Hosts</small><b id="dHosts">0</b></div>
+        <div class="mini"><small>Stations online</small><b id="dOnline">0<em>/0</em></b></div>
+        <div class="mini"><small>Phones charging</small><b id="dCharging">0</b></div>
+        <div class="mini"><small>Need attention</small><b id="dAttn">0</b></div>
+      </div>
+    </div>
+    <div class="deck-shield idle" id="dShield">
+      <div>
+        <span class="shield-big" id="dShieldIcon"></span>
+        <h3 id="dShieldTitle">No live stations</h3>
+        <p id="dShieldText">Power on a station to see its data-line protection here.</p>
+      </div>
+      <div class="lines">
+        <span class="live-pwr">VBUS / GND<b>Power only</b></span>
+        <span class="cut" id="dLines">D+ / D−<b>Cut</b></span>
+      </div>
+    </div>
+  </section>
 
-  <section id="claimBox" class="card hidden" style="margin-top:18px">
-    <b>Add a station</b>
-    <div class="muted">Type the <span class="mono">DEVICE_ID</span> from the station's ESP32 sketch. Readings show up as soon as it sends one.
-      Add as many stations as you like.</div>
-    <form id="claimForm" class="row" style="margin-top:6px">
+  <!-- admin: host list header -->
+  <div class="section-head hidden" id="adminHead">
+    <h2>Stations by host</h2>
+    <div class="toolbar"><select id="filter" aria-label="Show stations of"></select></div>
+  </div>
+
+  <div class="section-head hidden" id="bayHead">
+    <h2>Charging stations</h2>
+    <button id="addBtn" class="primary sm" type="button" aria-expanded="false" aria-controls="addPanel"></button>
+  </div>
+
+  <section id="addPanel" class="card hidden">
+    <div class="card-title">Add a station</div>
+    <div class="muted">Type the <span class="mono">DEVICE_ID</span> from the station's ESP32 sketch. It goes live as soon as it sends a reading.</div>
+    <form id="claimForm" class="row" style="margin-top:2px">
       <div><label for="clId">Station ID</label><input id="clId" class="mono" placeholder="station-01" required maxlength="64"
-           pattern="[A-Za-z0-9_\-]+" title="Letters, digits, - and _ only"></div>
-      <div><label for="clName">Name (optional)</label><input id="clName" placeholder="Lobby charger" maxlength="128"></div>
-      <div><label for="clLoc">Location (optional)</label><input id="clLoc" placeholder="Ground floor" maxlength="128"></div>
-      <button class="primary">Add station</button>
+           pattern="[A-Za-z0-9_\-]+" title="Letters, digits, - and _ only" autocomplete="off"></div>
+      <div><label for="clName">Name <span class="muted">(optional)</span></label><input id="clName" placeholder="Lobby charger" maxlength="128"></div>
+      <div><label for="clLoc">Location <span class="muted">(optional)</span></label><input id="clLoc" placeholder="Ground floor" maxlength="128"></div>
+      <div style="flex:0 0 auto;min-width:0;display:flex;gap:8px">
+        <button class="primary">Add station</button>
+        <button type="button" class="ghost" id="addCancel">Cancel</button>
+      </div>
     </form>
     <div class="msg" id="clMsg"></div>
   </section>
 
-  <section id="filterBox" class="row hidden" style="margin-top:18px">
-    <div style="max-width:260px">
-      <label for="filter">Show</label>
-      <select id="filter">
-        <option value="all">All stations</option>
-        <option value="unclaimed">Not assigned to a host</option>
-      </select>
-    </div>
-  </section>
-
-  <h2 id="count">Stations</h2>
-  <div class="tablewrap">
-    <table>
-      <thead id="thead"></thead>
-      <tbody id="rows"><tr><td class="empty">Loading…</td></tr></tbody>
-    </table>
-  </div>
+  <div id="list"></div>
   <div class="msg" id="listMsg"></div>
 </main>
 
-<script src="common.js"></script>
+<script src="common.js?v=3"></script>
 <script>
-let me;
+let me, hosts = [];
+document.documentElement.style.setProperty("--bolt",
+  `url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>')}")`);
 
-function headers() {
-  const cols = ["Station", "Status", "Last seen", "Uptime", "IP"];
-  if (me.role === "admin") cols.push("Host", "Added", "Pairing code");
-  $("thead").innerHTML = `<tr>${cols.map(c => `<th>${c}</th>`).join("")}<th></th></tr>`;
-  return cols.length + 1;
+const addTile = () => `<button type="button" class="bay-add" id="addTile">
+  <span class="plus">${ICON.plus}</span>Add a station<small>Use the DEVICE_ID from the ESP32 sketch</small></button>`;
+
+function greeting() {
+  const h = new Date().getHours();
+  return (h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening") + ", " + esc(me.full_name.split(" ")[0]);
 }
 
-function dur(sec) {
-  if (sec == null) return "–";
-  const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60);
-  return h ? `${h}h ${m}m` : `${m}m ${sec % 60}s`;
+// ---------- host ----------
+function renderDeck(devices, ownerOf = () => "") {
+  const online = devices.filter(d => d.online);
+  const charging = online.filter(d => d.state === "CHARGING");
+  const watts = online.reduce((s, d) => s + Math.max(0, d.power_mw || 0), 0) / 1000;
+  const attn = devices.filter(d => !d.online || stateClass(d.state) !== "ok").length;
+  $("greet").innerHTML = me.role === "admin" ? "Network overview" : greeting();
+  $("dWatts").textContent = watts.toFixed(2);
+  $("dOnline").innerHTML = `${online.length}<em>/${devices.length}</em>`;
+  $("dCharging").textContent = charging.length;
+  $("dAttn").textContent = attn;
+
+  const exposed = online.filter(d => d.data_blocked === false);
+  const box = $("dShield");
+  if (exposed.length) {
+    box.className = "deck-shield bad";
+    $("dShieldTitle").textContent = `Data lines exposed on ${exposed.length} station${exposed.length > 1 ? "s" : ""}`;
+    $("dShieldText").textContent = `${exposed.map(d => (d.name || d.id) + ownerOf(d)).join(", ")} report D+/D− connected. Unplug and inspect the hardware.`;
+    $("dLines").className = "open"; $("dLines").innerHTML = "D+ / D−<b>EXPOSED</b>";
+  } else if (online.length) {
+    box.className = "deck-shield";
+    $("dShieldTitle").textContent = "Every phone is charge-only";
+    $("dShieldText").textContent = `Data lines are physically cut on all ${online.length} live station${online.length > 1 ? "s" : ""}. Nothing can read or write a connected phone.`;
+    $("dLines").className = "cut"; $("dLines").innerHTML = "D+ / D−<b>Cut</b>";
+  } else {
+    box.className = "deck-shield idle";
+    $("dShieldTitle").textContent = "No live stations";
+    $("dShieldText").textContent = "Power on a station to see its data-line protection here.";
+    $("dLines").className = ""; $("dLines").innerHTML = "D+ / D−<b>–</b>";
+  }
+}
+
+function renderHost(devices) {
+  renderDeck(devices);
+  $("list").innerHTML = `<div class="bays">${devices.map(d => stationCard(d)).join("")}${addTile()}</div>`;
+  $("addTile").onclick = () => togglePanel(true);
+}
+
+// ---------- admin: network deck + one collapsible panel per host (login email) ----------
+const CHEV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>';
+let collapsed = new Set();
+try { collapsed = new Set(JSON.parse(localStorage.getItem("jg-collapsed") || "[]")); } catch {}
+const saveCollapsed = () => { try { localStorage.setItem("jg-collapsed", JSON.stringify([...collapsed])); } catch {} };
+
+function hostPanel(key, head, list, emptyText, extraClass = "") {
+  const online = list.filter(d => d.online);
+  const watts = online.reduce((s, d) => s + Math.max(0, d.power_mw || 0), 0) / 1000;
+  const attn = list.filter(d => !d.online || stateClass(d.state) !== "ok").length;
+  return `<section class="hostpanel ${extraClass} ${collapsed.has(key) ? "collapsed" : ""}" data-key="${esc(key)}">
+    <header role="button" tabindex="0" aria-expanded="${!collapsed.has(key)}">${head}
+      <div class="hp-stats">
+        <div class="hp-stat"><small>Stations</small><b>${list.length}</b></div>
+        <div class="hp-stat"><small>Online</small><b>${online.length}</b></div>
+        <div class="hp-stat volt"><small>Power</small><b>${watts.toFixed(1)} W</b></div>
+        ${attn ? `<div class="hp-stat bad"><small>Attention</small><b>${attn}</b></div>` : ""}
+      </div>
+      <span class="chev">${CHEV}</span>
+    </header>
+    <div class="body">${list.length ? `<div class="bays">${list.map(d => stationCard(d, { admin: true })).join("")}</div>`
+                                     : `<div class="muted" style="padding:10px 2px">${emptyText}</div>`}</div>
+  </section>`;
+}
+
+function renderAdmin(devices) {
+  const ownerEmail = new Map(hosts.map(h => [h.id, h.email]));
+  renderDeck(devices, d => d.owner_id ? ` (${ownerEmail.get(d.owner_id) || "?"})` : " (unassigned)");
+  $("dHosts").textContent = hosts.length;
+
+  const sel = $("filter"), want = sel.value || "all";
+  sel.innerHTML = `<option value="all">All hosts</option>` + hosts.map(h =>
+    `<option value="${h.id}">${esc(h.email)}</option>`).join("") + `<option value="none">Not assigned to a host</option>`;
+  sel.value = [...sel.options].some(o => o.value === want) ? want : "all";
+  const show = sel.value;
+  const byOwner = new Map();
+  devices.forEach(d => { const k = d.owner_id ?? "none"; byOwner.set(k, [...(byOwner.get(k) || []), d]); });
+
+  const out = [];
+  hosts.filter(h => show === "all" || String(h.id) === show).forEach(h => out.push(hostPanel("h" + h.id,
+    `${avatar(h.full_name, h.email)}<span class="who-txt"><b>${esc(h.email)}</b><span>${esc(h.full_name)}${h.is_active ? "" : " · deactivated"}</span></span>`,
+    byOwner.get(h.id) || [], "No stations yet. The host adds them from their own Stations page.")));
+  const unowned = byOwner.get("none") || [];
+  if (show === "none" || (show === "all" && unowned.length)) out.push(hostPanel("none",
+    `<span class="avatar" style="background:var(--surface-3);color:var(--muted)">?</span><span class="who-txt"><b>Not assigned to a host</b><span>Sending data, but no host has added them</span></span>`,
+    unowned, "Every station has a host.", "unassigned"));
+  $("list").innerHTML = out.join("") || `<div class="empty-state"><b>No hosts yet</b>Hosts create their own account on the login page.</div>`;
+
+  $("list").querySelectorAll(".hostpanel > header").forEach(h => {
+    const toggle = () => {
+      const panel = h.parentElement, key = panel.dataset.key;
+      collapsed.has(key) ? collapsed.delete(key) : collapsed.add(key);
+      panel.classList.toggle("collapsed"); h.setAttribute("aria-expanded", !collapsed.has(key)); saveCollapsed();
+    };
+    h.onclick = toggle;
+    h.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } };
+  });
 }
 
 async function load() {
-  const ncols = headers();
   let devices;
   try {
-    const q = me.role === "admin" && $("filter").value === "unclaimed" ? "?unclaimed=true" : "";
-    devices = await api("/api/devices" + q);
+    if (me.role === "admin") hosts = await api("/api/admin/users?role=host");
+    devices = await api("/api/devices");
     showMsg($("listMsg"), "");
   } catch (e) { showMsg($("listMsg"), e.message); return; }
-
-  const online = devices.filter(d => d.online).length;
-  $("count").textContent = `Stations (${devices.length}, ${online} online)`;
-
-  if (!devices.length) {
-    $("rows").innerHTML = `<tr><td class="empty" colspan="${ncols}">${me.role === "admin"
-      ? "No stations here yet. A station appears after its first reading."
-      : "No stations on your account yet. Add one above."}</td></tr>`;
-    return;
-  }
-  $("rows").innerHTML = devices.map(d => {
-    const link = "station.html?id=" + encodeURIComponent(d.id);
-    let extra = "";
-    if (me.role === "admin") {
-      extra = `<td>${d.owner_email ? esc(d.owner_email) : '<span class="muted">unassigned</span>'}</td>
-               <td>${d.added_at ? fmtTs(d.added_at) : "–"}</td>
-               <td class="mono">${esc(d.pairing_code || "–")}</td>`;
-    }
-    return `<tr>
-      <td><a href="${link}"><b>${esc(d.name || d.id)}</b></a>
-          <div class="muted">${esc(d.name ? d.id : "")}${d.location ? (d.name ? " · " : "") + esc(d.location) : ""}</div></td>
-      <td>${statePill(d.state)}</td>
-      <td>${ago(d.seconds_since_seen)}</td>
-      <td>${d.online ? dur(d.last_uptime_s) : "–"}</td>
-      <td class="mono">${esc(d.last_ip || "–")}</td>
-      ${extra}
-      <td class="actions"><a href="${link}">Open →</a></td>
-    </tr>`;
-  }).join("");
+  me.role === "admin" ? renderAdmin(devices) : renderHost(devices);
 }
+
+function togglePanel(open) {
+  $("addPanel").classList.toggle("hidden", !open);
+  $("addBtn").setAttribute("aria-expanded", open);
+  if (open) { $("addPanel").scrollIntoView({ behavior: "smooth", block: "center" }); $("clId").focus({ preventScroll: true }); }
+  else { $("claimForm").reset(); showMsg($("clMsg"), ""); }
+}
+$("addBtn").onclick = () => togglePanel($("addPanel").classList.contains("hidden"));
+$("addCancel").onclick = () => togglePanel(false);
 
 $("claimForm").onsubmit = async e => {
   e.preventDefault();
   const btn = e.submitter || e.target.querySelector("button"); btn.disabled = true;
   try {
     const d = await api("/api/devices", { method: "POST", body: {
-      device_id: $("clId").value.trim(),
-      name: $("clName").value.trim() || null,
-      location: $("clLoc").value.trim() || null } });
-    showMsg($("clMsg"), d.last_seen ? `Added ${d.id}. It is already sending readings.`
-      : `Added ${d.id}. Waiting for its first reading: power on the ESP32 with DEVICE_ID "${d.id}".`, true);
+      device_id: $("clId").value.trim(), name: $("clName").value.trim() || null, location: $("clLoc").value.trim() || null } });
     $("claimForm").reset();
+    showMsg($("clMsg"), d.last_seen ? `Added ${d.id}. It is already sending readings.`
+      : `Added ${d.id}. It goes live when the ESP32 with DEVICE_ID "${d.id}" sends its first reading.`, true);
     load();
   } catch (err) { showMsg($("clMsg"), err.message); }
   btn.disabled = false;
@@ -121,10 +284,14 @@ $("filter").onchange = load;
 (async () => {
   me = await requireLogin({ active: "stations" });
   if (me.role === "admin") {
-    $("title").textContent = "All stations";
-    $("filterBox").classList.remove("hidden");
+    ["deck", "adminHead", "dHostsBox"].forEach(id => $(id).classList.remove("hidden"));
+    $("dShieldIcon").innerHTML = ICON.shield;
+    $("dEyebrow").textContent = "Admin · network overview";
+    $("dWattsLabel").textContent = "W across the whole network";
   } else {
-    $("claimBox").classList.remove("hidden");
+    ["deck", "bayHead"].forEach(id => $(id).classList.remove("hidden"));
+    $("dShieldIcon").innerHTML = ICON.shield;
+    $("addBtn").innerHTML = ICON.plus + "Add station";
   }
   await load();
   setInterval(load, 3000);

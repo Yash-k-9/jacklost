@@ -4,248 +4,406 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Juice Guard – Admin</title>
-<link rel="stylesheet" href="common.css">
+<link rel="stylesheet" href="common.css?v=3">
 <style>
-  td select { width: auto; min-width: 180px; padding: 4px 6px; }
-  .detail { font-size: 12px; color: var(--muted); max-width: 320px; overflow-wrap: anywhere; }
-  .filters .row > div { min-width: 120px; }
-  .hostgroup { margin-top: 14px; padding: 0; overflow: hidden; }
-  .hostgroup > header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;
-                        padding: 12px 16px; border-bottom: 1px solid var(--border); }
-  .hostgroup > header .count { margin-left: auto; }
-  .hostgroup .tablewrap { border: 0; border-radius: 0; }
-  .hostgroup .empty { text-align: left; padding: 12px 16px; }
+  /* ---- console header ---- */
+  .console { display: grid; grid-template-columns: 1fr auto; gap: 18px; align-items: end; margin-bottom: 22px; }
+  .console h1 { margin-top: 10px; }
+  .kpis { display: flex; gap: 10px; flex-wrap: wrap; }
+  .kpi { min-width: 108px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--border);
+         background: linear-gradient(180deg, var(--surface-2), var(--surface)); }
+  .kpi small { display: block; font: 600 10px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .kpi b { font: 700 24px/1.2 var(--display); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .kpi.volt b { color: var(--volt); } .kpi.warn b { color: var(--warn); }
+
+  .tabs button .n { font: 600 11px var(--mono); margin-left: 6px; padding: 1px 6px; border-radius: 6px; background: rgba(255, 255, 255, .06); color: var(--muted); }
+  .tabs button.on .n { background: var(--volt-dim); color: var(--volt); }
+  .bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+  .bar .grow { flex: 1; }
+  .seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 11px; background: rgba(0, 0, 0, .35); border: 1px solid var(--border); }
+  .seg button { border: 0; background: transparent; color: var(--muted); padding: 7px 13px; font-size: 13px; border-radius: 8px; box-shadow: none; }
+  .seg button:hover { background: transparent; color: var(--text); }
+  .seg button.on { background: var(--surface-3); color: var(--text); }
+  .search { position: relative; min-width: 240px; }
+  .search input { padding-left: 36px; }
+  .search svg { position: absolute; left: 12px; top: 50%; width: 15px; height: 15px; transform: translateY(-50%); color: var(--muted); }
+
+  /* ---- people cards ---- */
+  .people { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .person { position: relative; padding: 18px; border-radius: 20px; border: 1px solid var(--border); overflow: hidden;
+            background: linear-gradient(180deg, var(--surface-2), var(--surface)); box-shadow: var(--shadow); }
+  .person.off { opacity: .62; }
+  .person.admin { border-color: rgba(200, 255, 61, .2); }
+  .person-top { display: flex; gap: 13px; align-items: center; }
+  .person-top .avatar { width: 46px; height: 46px; border-radius: 14px; font-size: 16px; }
+  .person-top .txt { min-width: 0; flex: 1; }
+  .person-top b { display: block; font: 600 16px var(--display); letter-spacing: -.01em; overflow-wrap: anywhere; }
+  .person-top .txt span { display: block; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+  .person-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 16px 0 14px; }
+  .person-stats div { padding: 9px 10px; border-radius: 11px; background: rgba(0, 0, 0, .28); border: 1px solid var(--border); }
+  .person-stats small { display: block; font: 600 9.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .person-stats b { font: 700 17px var(--display); font-variant-numeric: tabular-nums; }
+  .person-stats .volt b { color: var(--volt); }
+  .person-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .person-foot .grow { flex: 1; font: 500 11.5px var(--mono); color: var(--muted); }
+
+  /* ---- allocation board ---- */
+  .alloc { margin-top: 14px; border-radius: 20px; border: 1px solid var(--border); overflow: hidden;
+           background: linear-gradient(180deg, var(--surface-2), var(--surface)); box-shadow: var(--shadow); }
+  .alloc.unassigned { border-style: dashed; }
+  .alloc > header { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+  .alloc > header .avatar { width: 36px; height: 36px; border-radius: 12px; }
+  .alloc > header .txt { flex: 1; min-width: 0; }
+  .alloc > header b { display: block; font: 600 15px var(--display); overflow-wrap: anywhere; }
+  .alloc > header span.m { font-size: 12.5px; color: var(--muted); }
+  .strip { display: grid; grid-template-columns: 14px minmax(150px, 1.4fr) 150px 120px minmax(190px, 1.2fr) auto; gap: 14px; align-items: center;
+           padding: 12px 18px; border-bottom: 1px solid var(--border); }
+  .strip:last-child { border-bottom: 0; }
+  .strip:hover { background: rgba(255, 255, 255, .015); }
+  .sdot { width: 10px; height: 10px; border-radius: 50%; background: var(--idle-dot); }
+  .sdot.ok { background: var(--volt); box-shadow: 0 0 10px var(--volt); } .sdot.warn { background: var(--warn); }
+  .sdot.bad { background: var(--bad); box-shadow: 0 0 10px var(--bad); }
+  .strip .nm a { font: 600 14.5px var(--display); color: var(--text); }
+  .strip .nm div { font: 500 11.5px var(--mono); color: var(--muted); margin-top: 1px; }
+  .vbar { font: 600 12px var(--mono); color: var(--muted); }
+  .vbar b { color: var(--text); font-size: 13px; }
+  .vbar i { display: block; height: 4px; margin-top: 5px; border-radius: 99px; background: var(--surface-3); position: relative; overflow: hidden; }
+  .vbar i::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--w, 0%); background: var(--c, var(--volt)); border-radius: inherit; }
+  .code { display: inline-flex; align-items: center; gap: 6px; font: 600 12.5px var(--mono); letter-spacing: .08em; padding: 5px 9px;
+          border-radius: 8px; background: rgba(0, 0, 0, .35); border: 1px solid var(--border); cursor: pointer; color: var(--text); }
+  .code:hover { border-color: var(--volt); }
+  .code svg { width: 12px; height: 12px; color: var(--muted); }
+  .strip select { padding: 8px 10px; font-size: 13px; }
+  .strip .acts { display: flex; gap: 6px; justify-content: flex-end; }
+  .shield-ico { display: inline-flex; color: var(--shield); } .shield-ico.exposed { color: var(--bad); } .shield-ico.unknown { color: var(--faint); }
+  .shield-ico svg { width: 15px; height: 15px; }
+
+  /* ---- activity timeline ---- */
+  .feed { position: relative; padding: 6px 0 0 4px; }
+  .feed::before { content: ""; position: absolute; left: 21px; top: 0; bottom: 0; width: 1px; background: var(--border); }
+  .day { position: relative; margin: 18px 0 8px 44px; font: 600 10.5px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  .day:first-child { margin-top: 0; }
+  .ev { position: relative; display: grid; grid-template-columns: 36px 1fr auto; gap: 12px; align-items: start; padding: 10px 14px 10px 0; }
+  .ev-ico { position: relative; z-index: 1; width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center;
+            background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); }
+  .ev-ico svg { width: 16px; height: 16px; }
+  .ev.auth .ev-ico { color: var(--shield); border-color: rgba(56, 225, 255, .25); background: var(--shield-dim); }
+  .ev.station .ev-ico { color: var(--volt); border-color: rgba(200, 255, 61, .25); background: var(--volt-dim); }
+  .ev.admin .ev-ico { color: var(--warn); border-color: rgba(255, 181, 71, .25); background: var(--warn-soft); }
+  .ev.fail .ev-ico { color: var(--bad); border-color: rgba(255, 84, 104, .3); background: var(--bad-soft); }
+  .ev-body { min-width: 0; padding-top: 2px; }
+  .ev-title { font-size: 14px; overflow-wrap: anywhere; }
+  .ev-title b { font-weight: 600; }
+  .ev-title .t { font-family: var(--mono); font-size: 13px; color: var(--volt); }
+  .ev.fail .ev-title .t { color: var(--bad); }
+  .ev-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
+  .ev-time { text-align: right; font: 500 11.5px var(--mono); color: var(--muted); white-space: nowrap; padding-top: 3px; }
+  .ev-time span { display: block; color: var(--faint); font-size: 10.5px; margin-top: 2px; }
+  .filters { display: grid; grid-template-columns: 1fr 1fr 1fr 110px auto; gap: 10px; align-items: end; margin-bottom: 18px; }
+  .filters label { margin-top: 0; }
+
+  @media (max-width: 980px) {
+    .strip { grid-template-columns: 14px 1fr auto; }
+    .strip .vbar, .strip .codecell { display: none; }
+    .strip .assign { grid-column: 2 / -1; }
+    .strip .acts { grid-column: 2 / -1; justify-content: flex-start; }
+  }
+  @media (max-width: 720px) {
+    .console { grid-template-columns: 1fr; }
+    .kpis { display: grid; grid-template-columns: 1fr 1fr; }
+    .filters { grid-template-columns: 1fr 1fr; }
+    .ev { grid-template-columns: 36px 1fr; } .ev-time { grid-column: 2; text-align: left; padding: 0; }
+    .ev-time span { display: inline; margin-left: 6px; }
+  }
 </style>
 </head>
 <body>
 <main>
-  <h1>Admin</h1>
-  <div class="sub">Accounts, station assignment, pairing codes and the audit log.</div>
+  <section class="console">
+    <div>
+      <div class="eyebrow">Admin console · <span class="live" style="font-size:11px">live</span></div>
+      <h1>Operations</h1>
+      <div class="sub" style="margin-top:6px">People, station ownership and everything that happened.</div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><small>Hosts</small><b id="kHosts">–</b></div>
+      <div class="kpi volt"><small>Online</small><b id="kOnline">–</b></div>
+      <div class="kpi"><small>Stations</small><b id="kStations">–</b></div>
+      <div class="kpi warn"><small>Unassigned</small><b id="kFree">–</b></div>
+    </div>
+  </section>
 
-  <div class="tabs">
-    <button data-tab="users" class="on">Accounts</button>
-    <button data-tab="stations">Stations</button>
-    <button data-tab="audit">Audit log</button>
+  <div class="tabs" role="tablist">
+    <button data-tab="users" class="on">Accounts<span class="n" id="nUsers"></span></button>
+    <button data-tab="stations">Stations<span class="n" id="nStations"></span></button>
+    <button data-tab="audit">Activity</button>
   </div>
-  <div class="msg" id="msg"></div>
+  <div class="msg" id="msg" style="margin-top:-10px"></div>
 
   <!-- Accounts -->
   <section id="tab-users">
-    <div class="row" style="margin-bottom:10px">
-      <div style="max-width:220px">
-        <label for="roleFilter">Show</label>
-        <select id="roleFilter">
-          <option value="">All accounts</option>
-          <option value="host" selected>Station hosts</option>
-          <option value="admin">Admins</option>
-        </select>
+    <div class="bar">
+      <div class="seg" id="roleSeg">
+        <button data-role="host" class="on">Hosts</button><button data-role="admin">Admins</button><button data-role="">Everyone</button>
       </div>
+      <div class="grow"></div>
+      <div class="search"><input id="userQ" placeholder="Search name or email" autocomplete="off"></div>
     </div>
-    <div class="tablewrap">
-      <table>
-        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Stations</th><th>Status</th><th>Last login</th><th></th></tr></thead>
-        <tbody id="userRows"><tr><td class="empty" colspan="7">Loading…</td></tr></tbody>
-      </table>
-    </div>
-    <div class="muted" style="margin-top:8px">Deactivating an account logs it out at once and blocks new logins.
+    <div class="people" id="people"></div>
+    <div class="hint" style="margin-top:14px">Deactivating an account logs it out at once and blocks new logins.
       Admin accounts are made on the server with <span class="mono">scripts/create_admin.py</span>.</div>
   </section>
 
-  <!-- Stations -->
+  <!-- Stations: allocation board -->
   <section id="tab-stations" class="hidden">
-    <div class="row" style="margin-bottom:4px">
-      <div style="max-width:320px">
-        <label for="stFilter">Show</label>
-        <select id="stFilter"><option value="all">All hosts</option></select>
-      </div>
+    <div class="bar">
+      <select id="stFilter" style="width:auto;min-width:260px" aria-label="Show stations of"><option value="all">All hosts</option></select>
+      <div class="grow"></div>
+      <span class="hint" style="margin:0">Click a pairing code to copy it.</span>
     </div>
-    <div id="stGroups"><div class="card empty">Loading…</div></div>
-    <div class="muted" style="margin-top:8px">Stations are grouped by the host who owns them. Hosts add their own stations by station ID; each shows when it was added
-      (the audit log has a <span class="mono">device_added</span> entry too). You can still move a station to another host here.</div>
+    <div id="stGroups"></div>
   </section>
 
-  <!-- Audit -->
+  <!-- Activity -->
   <section id="tab-audit" class="hidden">
-    <form id="auditForm" class="filters card" style="margin-bottom:12px">
-      <div class="row">
-        <div><label for="auUser">Account</label><select id="auUser"><option value="">Anyone</option></select></div>
-        <div><label for="auAction">Action</label>
-          <select id="auAction">
-            <option value="">Any</option>
-            <option>login</option><option>login_failed</option><option>signup</option><option>logout_all</option>
-            <option>password_changed</option><option>device_added</option><option>device_claimed</option><option>claim_failed</option>
-            <option>device_released</option><option>device_assigned</option><option>device_updated</option>
-            <option>command_sent</option><option>pairing_code_regenerated</option><option>user_updated</option>
-          </select></div>
-        <div><label for="auTarget">Target (station ID or email)</label><input id="auTarget"></div>
-        <div style="max-width:110px"><label for="auLimit">Rows</label>
-          <select id="auLimit"><option>50</option><option selected>200</option><option>1000</option></select></div>
-        <button class="primary">Filter</button>
-      </div>
+    <form id="auditForm" class="card filters">
+      <div><label for="auUser">Account</label><select id="auUser"><option value="">Anyone</option></select></div>
+      <div><label for="auAction">Action</label><select id="auAction"><option value="">Any action</option></select></div>
+      <div><label for="auTarget">Station ID or email</label><input id="auTarget" placeholder="e.g. station-01"></div>
+      <div><label for="auLimit">Show</label><select id="auLimit"><option>50</option><option selected>200</option><option>1000</option></select></div>
+      <button class="primary">Apply</button>
     </form>
-    <div class="tablewrap">
-      <table>
-        <thead><tr><th>Time</th><th>Account</th><th>Action</th><th>Target</th><th>Detail</th><th>IP</th></tr></thead>
-        <tbody id="auRows"><tr><td class="empty" colspan="6">Loading…</td></tr></tbody>
-      </table>
-    </div>
+    <div class="card"><div class="feed" id="feed"></div></div>
   </section>
 </main>
 
-<script src="common.js"></script>
+<script src="common.js?v=3"></script>
 <script>
-let me, hosts = [], current = "users";
-
+let me, hosts = [], users = [], devices = [], current = "users";
 const msg = (t, ok) => showMsg($("msg"), t, ok);
+const SVG = (d, extra = "") => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ${extra}>${d}</svg>`;
+const I = {
+  search: SVG('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>'),
+  copy: SVG('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>'),
+  key: SVG('<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 9.2-9.2M16 7l3 3"/>'),
+  user: SVG('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
+  lock: SVG('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'),
+  plug: SVG('<path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0zM12 18v4"/>'),
+  move: SVG('<path d="M5 12h14M13 6l6 6-6 6"/>'),
+  alert: SVG('<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>'),
+  gear: SVG('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'),
+  send: SVG('<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>'),
+};
+
+// ---------------- shared data
+async function loadAll() {
+  [users, devices] = await Promise.all([api("/api/admin/users"), api("/api/devices")]);
+  hosts = users.filter(u => u.role === "host");
+  $("kHosts").textContent = hosts.length;
+  $("kStations").textContent = devices.length;
+  $("kOnline").textContent = devices.filter(d => d.online).length;
+  $("kFree").textContent = devices.filter(d => !d.owner_id).length;
+  $("nUsers").textContent = users.length;
+  $("nStations").textContent = devices.length;
+}
 
 // ---------------- tabs
 document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => showTab(b.dataset.tab));
-function showTab(name) {
+async function showTab(name) {
   current = name;
   document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === name));
   ["users", "stations", "audit"].forEach(t => $("tab-" + t).classList.toggle("hidden", t !== name));
   msg("");
   history.replaceState(null, "", "#" + name);
-  ({ users: loadUsers, stations: loadStations, audit: loadAudit })[name]();
+  await refresh();
+}
+async function refresh() {
+  try { await loadAll(); } catch (e) { return msg(e.message); }
+  ({ users: renderUsers, stations: renderStations, audit: loadAudit })[current]();
 }
 
-// ---------------- accounts
-async function loadUsers() {
-  const role = $("roleFilter").value;
-  let users;
-  try { users = await api("/api/admin/users" + (role ? "?role=" + role : "")); }
-  catch (e) { return msg(e.message); }
-  if (!users.length) { $("userRows").innerHTML = `<tr><td class="empty" colspan="7">No accounts.</td></tr>`; return; }
-  $("userRows").innerHTML = users.map(u => `<tr>
-      <td><b>${esc(u.full_name)}</b></td>
-      <td>${esc(u.email)}</td>
-      <td>${u.role === "admin" ? "Admin" : "Host"}</td>
-      <td>${u.role === "host" ? u.device_count : "–"}</td>
-      <td><span class="pill ${u.is_active ? "ok" : "bad"}">${u.is_active ? "Active" : "Deactivated"}</span></td>
-      <td>${fmtTs(u.last_login_at)}</td>
-      <td class="actions">
-        <button data-rename="${u.id}">Rename</button>
-        ${u.id === me.id ? "" : `<button data-active="${u.id}" data-to="${!u.is_active}" class="${u.is_active ? "danger" : ""}">
-            ${u.is_active ? "Deactivate" : "Activate"}</button>`}
-      </td></tr>`).join("");
+// ---------------- accounts: people cards
+let role = "host";
+$("roleSeg").querySelectorAll("button").forEach(b => b.onclick = () => {
+  role = b.dataset.role;
+  $("roleSeg").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+  renderUsers();
+});
+$("userQ").oninput = () => renderUsers();
+document.querySelector(".search").insertAdjacentHTML("afterbegin", I.search);
 
-  $("userRows").querySelectorAll("[data-active]").forEach(b => b.onclick = async () => {
+function renderUsers() {
+  const q = $("userQ").value.trim().toLowerCase();
+  const list = users.filter(u => (!role || u.role === role) &&
+    (!q || u.email.toLowerCase().includes(q) || u.full_name.toLowerCase().includes(q)));
+  if (!list.length) { $("people").innerHTML = `<div class="empty-state" style="grid-column:1/-1"><b>No accounts</b>Nothing matches this filter.</div>`; return; }
+  $("people").innerHTML = list.map(u => {
+    const mine = devices.filter(d => d.owner_id === u.id), online = mine.filter(d => d.online);
+    const watts = online.reduce((s, d) => s + Math.max(0, d.power_mw || 0), 0) / 1000;
+    const isHost = u.role === "host";
+    return `<article class="person ${u.is_active ? "" : "off"} ${isHost ? "" : "admin"}">
+      <div class="person-top">${avatar(u.full_name, u.email)}
+        <div class="txt"><b>${esc(u.full_name)}</b><span>${esc(u.email)}</span></div>
+        ${isHost ? `<span class="pill ${u.is_active ? "ok" : "bad"}">${u.is_active ? "Active" : "Off"}</span>` : `<span class="chip" style="color:var(--volt)">ADMIN</span>`}
+      </div>
+      ${isHost ? `<div class="person-stats">
+        <div><small>Stations</small><b>${mine.length}</b></div>
+        <div><small>Online</small><b>${online.length}</b></div>
+        <div class="volt"><small>Power</small><b>${watts.toFixed(1)}W</b></div>
+      </div>` : `<div style="height:14px"></div>`}
+      <div class="person-foot">
+        <span class="grow">${u.last_login_at ? "seen " + fmtTs(u.last_login_at) : "never logged in"}</span>
+        <button class="sm" data-rename="${u.id}">Rename</button>
+        ${u.id === me.id ? "" : `<button class="sm ${u.is_active ? "danger" : ""}" data-active="${u.id}" data-to="${!u.is_active}">${u.is_active ? "Deactivate" : "Activate"}</button>`}
+      </div>
+    </article>`;
+  }).join("");
+
+  $("people").querySelectorAll("[data-active]").forEach(b => b.onclick = async () => {
     const u = users.find(x => x.id == b.dataset.active), to = b.dataset.to === "true";
     if (!to && !confirm(`Deactivate ${u.email}? They are logged out at once.`)) return;
     try { await api(`/api/admin/users/${u.id}`, { method: "PATCH", body: { is_active: to } });
-          msg(`${u.email} ${to ? "activated" : "deactivated"}.`, true); loadUsers(); }
+          msg(`${u.email} ${to ? "activated" : "deactivated"}.`, true); refresh(); }
     catch (e) { msg(e.message); }
   });
-  $("userRows").querySelectorAll("[data-rename]").forEach(b => b.onclick = async () => {
+  $("people").querySelectorAll("[data-rename]").forEach(b => b.onclick = async () => {
     const u = users.find(x => x.id == b.dataset.rename);
     const name = prompt("New name for " + u.email, u.full_name);
     if (!name || !name.trim() || name.trim() === u.full_name) return;
     try { await api(`/api/admin/users/${u.id}`, { method: "PATCH", body: { full_name: name.trim() } });
-          msg("Renamed.", true); loadUsers(); }
+          msg("Renamed.", true); refresh(); }
     catch (e) { msg(e.message); }
   });
 }
-$("roleFilter").onchange = loadUsers;
 
-// ---------------- stations
-async function loadHosts() {
-  hosts = await api("/api/admin/users?role=host");
+// ---------------- stations: allocation board
+function shieldIco(d) {
+  const b = d.online ? d.data_blocked : null;
+  return `<span class="shield-ico ${b === true ? "" : b === false ? "exposed" : "unknown"}" title="${b === true ? "Data lines blocked" : b === false ? "DATA EXPOSED" : "Shield unknown"}">${ICON.shield}</span>`;
 }
 
-function stationRow(d) {
+function strip(d) {
+  const level = d.online ? stateClass(d.state) : "bad";
+  const v = d.voltage_v, w = v == null ? 0 : Math.min(100, v / 6 * 100);
+  const vc = { ok: "var(--volt)", warn: "var(--warn)", bad: "var(--bad)" }[level] || "var(--idle-dot)";
   const opts = [`<option value="">— nobody —</option>`].concat(hosts.map(h =>
-    `<option value="${h.id}" ${h.id === d.owner_id ? "selected" : ""}>${esc(h.full_name)} (${esc(h.email)})${h.is_active ? "" : " – deactivated"}</option>`));
-  return `<tr>
-    <td><a href="station.html?id=${encodeURIComponent(d.id)}"><b>${esc(d.name || d.id)}</b></a>
-        <div class="muted">${esc(d.name ? d.id : "")}${d.location ? (d.name ? " · " : "") + esc(d.location) : ""}</div></td>
-    <td>${statePill(d.state)} <div class="muted">${ago(d.seconds_since_seen)}</div></td>
-    <td>${d.added_at ? fmtTs(d.added_at) : "–"}</td>
-    <td class="mono">${esc(d.pairing_code || "–")}</td>
-    <td><select data-assign="${esc(d.id)}" data-was="${d.owner_id ?? ""}" aria-label="Host for ${esc(d.id)}">${opts.join("")}</select></td>
-    <td class="actions"><button data-code="${esc(d.id)}">New pairing code</button></td>
-  </tr>`;
+    `<option value="${h.id}" ${h.id === d.owner_id ? "selected" : ""}>${esc(h.email)}${h.is_active ? "" : " (off)"}</option>`));
+  return `<div class="strip">
+    <span class="sdot ${level}" title="${esc(STATE_LABEL[d.state] || d.state)}"></span>
+    <div class="nm"><a href="station.html?id=${encodeURIComponent(d.id)}">${esc(d.name || d.id)}</a>
+      <div>${esc(d.id)} · ${d.last_seen ? ago(d.seconds_since_seen) : "never seen"}${d.added_at ? " · added " + parseTs(d.added_at).toLocaleDateString() : ""}</div></div>
+    <div class="vbar" style="--w:${d.online ? w : 0}%;--c:${vc}"><b>${v == null ? "–" : v.toFixed(2)}</b> V &nbsp;${shieldIco(d)}<i></i></div>
+    <div class="codecell"><span class="code" data-copy="${esc(d.pairing_code || "")}" title="Copy pairing code">${esc(d.pairing_code || "–")}${I.copy}</span></div>
+    <div class="assign"><select data-assign="${esc(d.id)}" data-was="${d.owner_id ?? ""}" aria-label="Host for ${esc(d.id)}">${opts.join("")}</select></div>
+    <div class="acts"><button class="sm ghost" data-code="${esc(d.id)}" title="New pairing code">${I.key}New code</button></div>
+  </div>`;
 }
 
-function hostGroup(title, sub, list, emptyText) {
-  const online = list.filter(d => d.online).length;
-  return `<section class="card hostgroup">
-    <header><b>${title}</b>${sub}
-      <span class="muted count">${list.length} station${list.length === 1 ? "" : "s"}${list.length ? `, ${online} online` : ""}</span></header>
-    ${list.length ? `<div class="tablewrap"><table>
-      <thead><tr><th>Station</th><th>Status</th><th>Added</th><th>Pairing code</th><th>Move to host</th><th></th></tr></thead>
-      <tbody>${list.map(stationRow).join("")}</tbody></table></div>`
-    : `<div class="empty">${emptyText}</div>`}
-  </section>`;
+function alloc(head, list, emptyText, cls = "") {
+  return `<section class="alloc ${cls}"><header>${head}<span class="chip">${list.length} station${list.length === 1 ? "" : "s"}</span></header>
+    ${list.length ? list.map(strip).join("") : `<div class="muted" style="padding:14px 18px">${emptyText}</div>`}</section>`;
 }
 
-async function loadStations() {
-  let devices;
-  try {
-    await loadHosts();
-    devices = await api("/api/devices");
-  } catch (e) { return msg(e.message); }
-
-  // Host filter: keep the current choice while refreshing the options.
+function renderStations() {
   const sel = $("stFilter"), want = sel.value || "all";
-  sel.innerHTML = `<option value="all">All hosts</option>` + hosts.map(h =>
-    `<option value="${h.id}">${esc(h.full_name)} (${esc(h.email)})</option>`).join("") +
+  sel.innerHTML = `<option value="all">All hosts</option>` + hosts.map(h => `<option value="${h.id}">${esc(h.email)}</option>`).join("") +
     `<option value="none">Not assigned to a host</option>`;
   sel.value = [...sel.options].some(o => o.value === want) ? want : "all";
   const show = sel.value;
-
   const byOwner = new Map();
   devices.forEach(d => { const k = d.owner_id ?? "none"; byOwner.set(k, [...(byOwner.get(k) || []), d]); });
 
-  const groups = [];
-  hosts.filter(h => show === "all" || String(h.id) === show).forEach(h => groups.push(hostGroup(
-    esc(h.full_name),
-    ` <span class="muted">${esc(h.email)}</span>${h.is_active ? "" : ' <span class="pill bad">Deactivated</span>'}`,
-    byOwner.get(h.id) || [], "No stations yet.")));
+  const out = [];
   const unowned = byOwner.get("none") || [];
-  if (show === "none" || (show === "all" && unowned.length)) groups.push(hostGroup(
-    "Not assigned to a host", "", unowned, "Every station has a host."));
-  $("stGroups").innerHTML = groups.join("") ||
-    `<div class="card empty">No hosts yet. Hosts sign up on the login page.</div>`;
+  if (show === "none" || (show === "all" && unowned.length)) out.push(alloc(
+    `<span class="avatar" style="background:var(--surface-3);color:var(--warn)">!</span><span class="txt"><b>Not assigned to a host</b><span class="m">Pick a host on the right, or let a host add it by ID</span></span>`,
+    unowned, "Every station has a host.", "unassigned"));
+  hosts.filter(h => show === "all" || String(h.id) === show).forEach(h => out.push(alloc(
+    `${avatar(h.full_name, h.email)}<span class="txt"><b>${esc(h.email)}</b><span class="m">${esc(h.full_name)}${h.is_active ? "" : " · deactivated"}</span></span>`,
+    byOwner.get(h.id) || [], "No stations yet.")));
+  $("stGroups").innerHTML = out.join("") || `<div class="empty-state"><b>No hosts yet</b>Hosts create their own account on the login page.</div>`;
 
-  $("stGroups").querySelectorAll("[data-assign]").forEach(sel => sel.onchange = async () => {
-    const id = sel.dataset.assign, userId = sel.value ? Number(sel.value) : null;
-    const who = userId ? sel.selectedOptions[0].textContent : "nobody";
-    if (!confirm(`Move ${id} to ${who}?`)) { sel.value = sel.dataset.was; return; }
+  $("stGroups").querySelectorAll("[data-assign]").forEach(s => s.onchange = async () => {
+    const id = s.dataset.assign, userId = s.value ? Number(s.value) : null;
+    const who = userId ? s.selectedOptions[0].textContent : "nobody";
+    if (!confirm(`Move ${id} to ${who}?`)) { s.value = s.dataset.was; return; }
     try { await api(`/api/admin/devices/${encodeURIComponent(id)}/assign`, { method: "POST", body: { user_id: userId } });
-          msg(`${id} moved to ${who}.`, true); loadStations(); }
-    catch (e) { msg(e.message); sel.value = sel.dataset.was; }
+          msg(`${id} moved to ${who}.`, true); refresh(); }
+    catch (e) { msg(e.message); s.value = s.dataset.was; }
   });
   $("stGroups").querySelectorAll("[data-code]").forEach(b => b.onclick = async () => {
     const id = b.dataset.code;
     if (!confirm(`Make a new pairing code for ${id}? The old code stops working.`)) return;
     try { const d = await api(`/api/admin/devices/${encodeURIComponent(id)}/pairing-code`, { method: "POST" });
-          msg(`New pairing code for ${id}: ${d.pairing_code}`, true); loadStations(); }
+          msg(`New pairing code for ${id}: ${d.pairing_code}`, true); refresh(); }
     catch (e) { msg(e.message); }
   });
+  $("stGroups").querySelectorAll("[data-copy]").forEach(c => c.onclick = async () => {
+    if (!c.dataset.copy) return;
+    try { await navigator.clipboard.writeText(c.dataset.copy); msg(`Copied ${c.dataset.copy}.`, true); }
+    catch { msg("Copy not allowed here. Select the code and copy it by hand."); }
+  });
 }
-$("stFilter").onchange = loadStations;
+$("stFilter").onchange = renderStations;
 
-// ---------------- audit
+// ---------------- activity timeline
+const ACTIONS = {
+  login: ["auth", I.user, "signed in"],
+  login_failed: ["fail", I.lock, "failed to sign in"],
+  signup: ["auth", I.user, "created an account"],
+  logout_all: ["auth", I.lock, "logged out everywhere"],
+  password_changed: ["auth", I.lock, "changed their password"],
+  device_added: ["station", I.plug, "added station"],
+  device_claimed: ["station", I.plug, "claimed station"],
+  claim_failed: ["fail", I.alert, "entered a wrong pairing code for"],
+  device_released: ["station", I.plug, "removed station"],
+  device_assigned: ["admin", I.move, "reassigned station"],
+  device_updated: ["station", I.gear, "changed settings of"],
+  command_sent: ["station", I.send, "sent a command to"],
+  pairing_code_regenerated: ["admin", I.key, "made a new pairing code for"],
+  user_updated: ["admin", I.user, "updated account"],
+};
+$("auAction").insertAdjacentHTML("beforeend", Object.entries(ACTIONS).map(([k, v]) => `<option value="${k}">${v[2]}</option>`).join(""));
+
+function detailChips(r) {
+  const d = r.detail || {};
+  const chips = [];
+  const email = id => (users.find(u => u.id === id) || {}).email || (id == null ? "nobody" : "#" + id);
+  if (r.action === "device_assigned") chips.push(`${email(d.from_user_id)} → ${email(d.to_user_id)}`);
+  else if (r.action === "device_added") chips.push(d.new ? "new station" : "was already sending");
+  else if (r.action === "command_sent" && d.command) chips.push(d.command);
+  else Object.entries(d).forEach(([k, v]) => v != null && chips.push(`${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`));
+  if (r.client_ip) chips.push(r.client_ip);
+  return chips.map(c => `<span class="chip">${esc(c)}</span>`).join("");
+}
+
 async function loadAudit() {
   try {
-    if ($("auUser").options.length === 1) {
-      const all = await api("/api/admin/users");
-      $("auUser").insertAdjacentHTML("beforeend",
-        all.map(u => `<option value="${u.id}">${esc(u.email)}</option>`).join(""));
-    }
+    if ($("auUser").options.length === 1)
+      $("auUser").insertAdjacentHTML("beforeend", users.map(u => `<option value="${u.id}">${esc(u.email)}</option>`).join(""));
     const q = new URLSearchParams({ limit: $("auLimit").value });
     if ($("auUser").value) q.set("user_id", $("auUser").value);
     if ($("auAction").value) q.set("action", $("auAction").value);
     if ($("auTarget").value.trim()) q.set("target", $("auTarget").value.trim());
     const rows = await api("/api/admin/audit?" + q);
-    $("auRows").innerHTML = rows.length ? rows.map(r => `<tr>
-        <td style="white-space:nowrap">${fmtTs(r.ts)}</td>
-        <td>${esc(r.user_email || "–")}</td>
-        <td><span class="pill ${/failed/.test(r.action) ? "bad" : ""}">${esc(r.action)}</span></td>
-        <td class="mono">${esc(r.target || "")}</td>
-        <td class="detail mono">${r.detail ? esc(JSON.stringify(r.detail)) : ""}</td>
-        <td class="mono">${esc(r.client_ip || "")}</td>
-      </tr>`).join("") : `<tr><td class="empty" colspan="6">Nothing matches.</td></tr>`;
+    if (!rows.length) { $("feed").innerHTML = `<div class="muted" style="padding:20px 44px">Nothing matches.</div>`; return; }
+    let lastDay = "";
+    $("feed").innerHTML = rows.map(r => {
+      const t = parseTs(r.ts), day = t.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+      const [cls, ico, verb] = ACTIONS[r.action] || ["", I.gear, r.action];
+      const head = day !== lastDay ? `<div class="day">${esc(day)}</div>` : "";
+      lastDay = day;
+      const isStation = /^device_|^command|^claim|^pairing/.test(r.action);
+      return `${head}<div class="ev ${cls}">
+        <span class="ev-ico">${ico}</span>
+        <div class="ev-body">
+          <div class="ev-title"><b>${esc(r.user_email || "Someone")}</b> ${esc(verb)} ${r.target ? (isStation
+            ? `<a class="t" href="station.html?id=${encodeURIComponent(r.target)}">${esc(r.target)}</a>` : `<span class="t">${esc(r.target)}</span>`) : ""}</div>
+          <div class="ev-meta">${detailChips(r)}</div>
+        </div>
+        <div class="ev-time">${ago((Date.now() - t) / 1000)}<span>${t.toLocaleTimeString()}</span></div>
+      </div>`;
+    }).join("");
   } catch (e) { msg(e.message); }
 }
 $("auditForm").onsubmit = e => { e.preventDefault(); loadAudit(); };
@@ -253,7 +411,8 @@ $("auditForm").onsubmit = e => { e.preventDefault(); loadAudit(); };
 (async () => {
   me = await requireLogin({ adminOnly: true, active: "admin" });
   const start = location.hash.slice(1);
-  showTab(["users", "stations", "audit"].includes(start) ? start : "users");
+  await showTab(["users", "stations", "audit"].includes(start) ? start : "users");
+  setInterval(() => { if (current !== "audit" && !document.activeElement.matches("select, input")) refresh(); }, 5000);
 })();
 </script>
 </body>
