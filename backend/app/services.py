@@ -13,21 +13,29 @@ def thresholds_for(device: Device | None) -> Thresholds:
     )
 
 
-def compute_state(voltage_v: float, current_ma: float, device_alert: str, data_blocked: bool) -> str:
-    """Phase-1 state for one reading. Phase 3 replaces this with the full detection engine.
+def compute_state(voltage_v: float, current_ma: float, device_alert: str, data_blocked: bool,
+                  thresholds: Thresholds | None = None) -> str:
+    """State for one reading.
 
-    NO_SUPPLY  charger voltage missing
-    IDLE       charger present, no phone drawing current
-    CHARGING   a phone is drawing current
-    ALERT      the station itself reports a sustained voltage problem
-    TAMPER     the station says data lines are NOT blocked (firmware modified?)
+    TAMPER        the station says data lines are NOT blocked (firmware modified?)
+    OVER_VOLTAGE  voltage above the station's limit, or the station flags HIGH_VOLTAGE
+    NO_SUPPLY     charger voltage missing
+    LOW_VOLTAGE   voltage below the station's limit, or the station flags LOW_VOLTAGE
+    IDLE          charger present, no phone drawing current
+    CHARGING      a phone is drawing current
+
+    The server checks the limits itself on every reading: the station only raises its own flag
+    after 3 bad readings in a row, so a sudden surge would otherwise show as CHARGING.
     """
+    t = thresholds or Thresholds(sag_v=config.DEFAULT_SAG_V, over_voltage_v=config.DEFAULT_OVER_VOLTAGE_V)
     if not data_blocked:
         return "TAMPER"
+    if voltage_v > t.over_voltage_v or device_alert == "HIGH_VOLTAGE":
+        return "OVER_VOLTAGE"
     if voltage_v < config.NO_SUPPLY_V:
         return "NO_SUPPLY"
-    if device_alert != "NONE":
-        return "ALERT"
+    if voltage_v < t.sag_v or device_alert == "LOW_VOLTAGE":
+        return "LOW_VOLTAGE"
     if current_ma >= config.CHARGING_CURRENT_MA:
         return "CHARGING"
     return "IDLE"

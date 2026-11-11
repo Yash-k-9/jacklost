@@ -51,10 +51,11 @@ function ago(sec) {
 }
 
 function stateClass(state) {
-  return { CHARGING: "ok", IDLE: "ok", NO_SUPPLY: "warn", UNKNOWN: "", OFFLINE: "bad", ALERT: "bad", TAMPER: "bad" }[state] ?? "warn";
+  return { CHARGING: "ok", IDLE: "ok", NO_SUPPLY: "warn", UNKNOWN: "", OFFLINE: "bad", ALERT: "bad", TAMPER: "bad",
+           OVER_VOLTAGE: "bad", LOW_VOLTAGE: "warn" }[state] ?? "warn";
 }
 const STATE_LABEL = { CHARGING: "Charging", IDLE: "Idle", NO_SUPPLY: "No power", UNKNOWN: "Waiting",
-                      OFFLINE: "Offline", ALERT: "Alert", TAMPER: "Tamper" };
+                      OFFLINE: "Offline", ALERT: "Alert", TAMPER: "Tamper", OVER_VOLTAGE: "Over-voltage", LOW_VOLTAGE: "Low voltage" };
 const statePill = s => `<span class="pill ${stateClass(s)}">${esc(STATE_LABEL[s] || s)}</span>`;
 
 // Small inline icons (stroke = currentColor).
@@ -103,6 +104,11 @@ const fracAngle = f => -135 + 270 * Math.max(0, Math.min(1, f));
 // Voltage dial: 270° arc, shaded safe band between the station's own limits.
 function gauge(v, thresholds, level, { size = "" } = {}) {
   const cx = 69, cy = 64, r = 52;
+  // The voltage itself decides the colour too: a surge is red even before the state catches up.
+  const over = v != null && thresholds && v > thresholds.over_voltage_v;
+  const low = v != null && thresholds && v >= 1 && v < thresholds.sag_v;
+  if (over) level = "bad"; else if (low && level === "ok") level = "warn";
+  const offScale = v != null && v > V_MAX;
   const band = thresholds ? arcPath(cx, cy, r, fracAngle(thresholds.sag_v / V_MAX), fracAngle(thresholds.over_voltage_v / V_MAX)) : "";
   const fill = v != null && v > 0.02 ? arcPath(cx, cy, r, -135, fracAngle(v / V_MAX)) : "";
   const ticks = Array.from({ length: V_MAX + 1 }, (_, i) => {
@@ -110,14 +116,14 @@ function gauge(v, thresholds, level, { size = "" } = {}) {
     return `<line class="tick" x1="${(cx + r1 * Math.sin(a)).toFixed(1)}" y1="${(cy - r1 * Math.cos(a)).toFixed(1)}"
       x2="${(cx + r2 * Math.sin(a)).toFixed(1)}" y2="${(cy - r2 * Math.cos(a)).toFixed(1)}" stroke-width="${i === 5 ? 2 : 1.2}" stroke-linecap="round"/>`;
   }).join("");
-  return `<div class="gauge ${level} ${size}" role="img" aria-label="Voltage ${v == null ? "unknown" : v.toFixed(2) + " volts"}">
+  return `<div class="gauge ${level} ${size} ${over ? "surge" : ""}" role="img" aria-label="Voltage ${v == null ? "unknown" : v.toFixed(2) + " volts"}${over ? ", above the safe limit" : ""}">
     <svg viewBox="0 0 138 120" fill="none">
       <path class="track" d="${arcPath(cx, cy, r, -135, 135)}" stroke-width="9" stroke-linecap="round"/>
       ${band ? `<path class="band" d="${band}" stroke-width="9"/>` : ""}
       ${fill ? `<path class="fill" d="${fill}" stroke-width="9" stroke-linecap="round"/>` : ""}
       ${ticks}
     </svg>
-    <div class="read"><b>${v == null ? "–" : v.toFixed(2)}</b><span>VOLTS</span></div>
+    <div class="read"><b>${v == null ? "–" : v.toFixed(2)}</b><span>${offScale ? "▲ OFF SCALE" : over ? "▲ TOO HIGH" : low ? "▼ TOO LOW" : "VOLTS"}</span></div>
     <div class="scale"><span>0</span><span>6V</span></div>
   </div>`;
 }
@@ -262,7 +268,7 @@ const INCIDENT = {
   hidden_load: { title: "Possible hidden device", icon: () => I_CHIP,
     text: i => `A small, perfectly steady current (~${i.peak != null ? Math.round(i.peak) : "?"} mA) is being drawn, unlike a charging phone. Something may be wired inside the port, such as a data-skimming module. Open and inspect the port.` },
   clone: { title: "Cloned station", icon: () => I_COPY2,
-    text: i => `Two devices are reporting as this station${i.detail && i.detail.reason === "ip" ? " from different addresses" : " with different uptimes"}${i.detail && i.detail.ips && i.detail.ips.length ? ` (${i.detail.ips.join(", ")})` : ""}. Someone may have copied its ID and key to fake its readings.` },
+    text: i => `Two devices are reporting as this station${i.detail && i.detail.reason === "ip" ? " from different addresses" : " with different uptimes"}. Someone may have copied its ID and key to fake its readings.` },
   low_voltage: { title: "Low voltage", icon: () => ICON.bolt,
     text: i => `Voltage dropped to ${_v(i.peak)} V${i.detail && i.detail.limit_v ? ` (limit ${i.detail.limit_v} V)` : ""}. The charger may be weak, overloaded or tampered with.` },
   reversed_current: { title: "Reversed current", icon: () => WARN_ICON,
@@ -287,7 +293,7 @@ const INCIDENT = {
   reboot_loop: { title: "Restart loop", icon: () => ICON.clock,
     text: i => `The station restarted ${i.count} times in a short period. Someone may be power-cycling it to reset or tamper with it.` },
   bad_key: { title: "Impersonation attempt", icon: () => WARN_ICON,
-    text: i => `${i.count} reading${i.count > 1 ? "s" : ""} claiming to be this station ${i.count > 1 ? "were" : "was"} rejected for a wrong API key${i.detail && i.detail.ips && i.detail.ips.length ? ` from ${i.detail.ips.join(", ")}` : ""}. Someone may be trying to fake its data.` },
+    text: i => `${i.count} reading${i.count > 1 ? "s" : ""} claiming to be this station ${i.count > 1 ? "were" : "was"} rejected for a wrong API key. Someone may be trying to fake its readings.` },
 };
 
 // One incident as an alert row. opts.station: show which station; opts.owner: show host email (admin).

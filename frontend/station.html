@@ -123,7 +123,6 @@
     <div class="stat"><small>Last seen</small><strong id="s-seen">–</strong></div>
     <div class="stat"><small>Station uptime</small><strong id="s-up">–</strong></div>
     <div class="stat"><small>Wi-Fi signal</small><strong id="s-rssi">–</strong></div>
-    <div class="stat"><small>Station IP</small><strong id="s-ip" class="mono">–</strong></div>
   </section>
 
   <div class="split">
@@ -229,7 +228,7 @@ function resetRest(from) {
   const ids = ["c-server", "c-known", "c-online", "c-steady", "c-health"];
   ids.slice(ids.indexOf(from)).forEach(id => setCheck(id, "", "–", "Not checked"));
   $("timeline").innerHTML = "";
-  ["s-i","s-p","s-rssi","s-up","s-seen","s-ip"].forEach(id => $(id).textContent = "–");
+  ["s-i","s-p","s-rssi","s-up","s-seen"].forEach(id => $(id).textContent = "–");
   renderHero(null, null, []);
   $("s-state").innerHTML = "";
   $("controls").classList.add("hidden");
@@ -349,6 +348,8 @@ async function refresh() {
       IDLE: ["ok", "OK", "Charger present, no phone drawing current."],
       NO_SUPPLY: ["warn", "NO POWER", "Charger voltage below 1 V – charger unplugged?"],
       ALERT: ["bad", "ALERT", `Station reports ${last.device_alert} (limits ${t.sag_v}–${t.over_voltage_v} V).`],
+      OVER_VOLTAGE: ["bad", "SURGE", `${last.voltage_v.toFixed(2)} V is above the ${t.over_voltage_v} V limit. Unplug phones and check the charger.`],
+      LOW_VOLTAGE: ["warn", "LOW", `${last.voltage_v.toFixed(2)} V is below the ${t.sag_v} V limit. Weak or overloaded charger?`],
       TAMPER: ["bad", "TAMPER", "Station says data lines are NOT blocked – firmware modified?"],
     };
     let [lvl, tag, txt] = msgs[last.state] || ["warn", last.state, "Unknown state."];
@@ -375,7 +376,6 @@ async function refresh() {
   $("s-state").innerHTML = statePill(dev.state);
   renderHero(dev, last, readings);
   $("s-seen").textContent = ago(since);
-  $("s-ip").textContent = dev.last_ip || "–";
 
   // verdict
   const label = dev.name || dev.id;

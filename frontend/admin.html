@@ -374,7 +374,6 @@ function detailChips(r) {
   else if (r.action === "device_added") chips.push(d.new ? "new station" : "was already sending");
   else if (r.action === "command_sent" && d.command) chips.push(d.command);
   else Object.entries(d).forEach(([k, v]) => v != null && chips.push(`${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`));
-  if (r.client_ip) chips.push(r.client_ip);
   return chips.map(c => `<span class="chip">${esc(c)}</span>`).join("");
 }
 
