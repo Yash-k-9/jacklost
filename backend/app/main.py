@@ -4,6 +4,7 @@ Run from the backend/ folder:
     uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 """
 import logging
+import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from .api import admin, devices, incidents, ingest
 from .auth import routes as auth_routes
 from .auth.security import new_pairing_code
 from .db import SessionLocal, init_db, utcnow
+from .incidents import record_invalid
 from .models import ROLE_ADMIN, Device, User
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -58,8 +60,21 @@ app.add_middleware(
 async def validation_error(request: Request, exc: RequestValidationError):
     # Short, readable message: the ESP32 prints this body on the Serial Monitor.
     errors = [f"{'.'.join(str(p) for p in e['loc'][1:])}: {e['msg']}" for e in exc.errors()]
-    log.warning("422 from %s: %s", request.client.host if request.client else "?", errors)
+    ip = request.client.host if request.client else None
+    log.warning("422 from %s: %s", ip or "?", errors)
+    _note_invalid_reading(request, exc, ip, errors)
     return JSONResponse(status_code=422, content={"detail": errors})
+
+
+def _note_invalid_reading(request: Request, exc: RequestValidationError, ip: str | None, errors: list[str]) -> None:
+    """A station sent impossible values with the right key: raise invalid_data on it."""
+    body = exc.body if isinstance(exc.body, dict) else None
+    key = request.headers.get("x-api-key")
+    if request.url.path != "/api/ingest" or not body or not isinstance(body.get("device_id"), str) or             not key or not secrets.compare_digest(key, config.DEVICE_API_KEY):
+        return
+    with SessionLocal() as db:
+        record_invalid(db, body["device_id"], ip, utcnow(), errors)
+        db.commit()
 
 
 @app.get("/api/health")

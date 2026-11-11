@@ -250,7 +250,34 @@ async function requireLogin({ adminOnly = false, active = "" } = {}) {
 
 // ---------- security incidents ----------
 const WARN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>';
+const I_AMP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8 15l4-8 4 8M9.5 12h5"/></svg>';
+const I_CHIP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4"/></svg>';
+const I_COPY2 = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="7" width="11" height="11" rx="2"/><rect x="10" y="3" width="11" height="11" rx="2"/></svg>';
+const I_PLUGX = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5"/><path d="M3 3l18 18"/></svg>';
+const _n = (i, one, many = one + "s") => `${i.count} ${i.count === 1 ? one : many}`;
+const _v = x => x != null ? x.toFixed(2) : "?";
 const INCIDENT = {
+  over_current: { title: "Over-current", icon: () => I_AMP,
+    text: i => `Current reached ${i.peak != null ? Math.round(i.peak) : "?"} mA${i.detail && i.detail.limit_ma ? ` (limit ${i.detail.limit_ma} mA)` : ""}. A short circuit or a malicious load is pulling too much power. Take the port out of use and inspect it.` },
+  hidden_load: { title: "Possible hidden device", icon: () => I_CHIP,
+    text: i => `A small, perfectly steady current (~${i.peak != null ? Math.round(i.peak) : "?"} mA) is being drawn, unlike a charging phone. Something may be wired inside the port, such as a data-skimming module. Open and inspect the port.` },
+  clone: { title: "Cloned station", icon: () => I_COPY2,
+    text: i => `Two devices are reporting as this station${i.detail && i.detail.reason === "ip" ? " from different addresses" : " with different uptimes"}${i.detail && i.detail.ips && i.detail.ips.length ? ` (${i.detail.ips.join(", ")})` : ""}. Someone may have copied its ID and key to fake its readings.` },
+  low_voltage: { title: "Low voltage", icon: () => ICON.bolt,
+    text: i => `Voltage dropped to ${_v(i.peak)} V${i.detail && i.detail.limit_v ? ` (limit ${i.detail.limit_v} V)` : ""}. The charger may be weak, overloaded or tampered with.` },
+  reversed_current: { title: "Reversed current", icon: () => WARN_ICON,
+    text: i => `Current is flowing backwards (up to ${i.peak != null ? Math.round(i.peak) : "?"} mA). The sensor wiring was swapped or the port was rewired. Inspect the station.` },
+  data_mismatch: { title: "Readings don't add up", icon: () => WARN_ICON,
+    text: i => `Reported power is ${i.peak != null ? i.peak + "%" : "far"} off from voltage × current. The sensor is faulty or the readings are being faked.` },
+  supply_lost: { title: "Charger power lost", icon: () => I_PLUGX,
+    text: i => `The station is online but its charger supply is gone (~0 V). The charger was unplugged, switched off or disconnected.` },
+  dropout: { title: "Unstable connection", icon: () => ICON.wifi,
+    text: i => `Check-ins went missing ${_n(i, "time")} recently (longest gap ${i.peak != null ? Math.round(i.peak) : "?"} s). Weak Wi-Fi, jamming or power cuts.` },
+  offline: { title: "Station offline", icon: () => ICON.wifi,
+    text: i => i.active ? `The station stopped reporting. While it's silent nothing on it is being watched. Check power and Wi-Fi.`
+      : `The station was silent for ${i.detail && i.detail.silent_s != null ? i.detail.silent_s + " s" : "a while"} before reporting again.` },
+  invalid_data: { title: "Impossible readings", icon: () => WARN_ICON,
+    text: i => `${_n(i, "reading")} with impossible values ${i.count === 1 ? "was" : "were"} rejected${i.detail && i.detail.errors && i.detail.errors.length ? ` (${i.detail.errors[0]})` : ""}. Broken sensor or forged readings.` },
   data_exposed: { title: "Data lines exposed", icon: () => ICON.shield,
     text: i => `The station reported D+/D− connected (${i.count} reading${i.count > 1 ? "s" : ""}). A phone plugged in now could have its data read. Inspect the port and wiring before anyone uses it.` },
   over_voltage: { title: "Over-voltage", icon: () => ICON.bolt,

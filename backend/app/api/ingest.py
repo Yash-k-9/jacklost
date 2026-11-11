@@ -45,7 +45,7 @@ def ingest(
                      .order_by(Reading.id.desc()).limit(1))
     if device in db.new:
         db.flush()  # incidents reference the new station row
-    check_reading(db, device, payload, prev, now)
+    check_reading(db, device, payload, prev, now, client_ip)
 
     state = compute_state(payload.voltage_v, payload.current_ma, payload.device_alert, payload.data_blocked)
 

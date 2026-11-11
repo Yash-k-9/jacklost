@@ -16,6 +16,7 @@ from ..db import get_db, utcnow
 from ..models import ROLE_ADMIN, AuditLog, Command, Device, Reading, User
 from ..auth.security import new_pairing_code
 from .incidents import count_active
+from ..incidents import sweep_offline
 from ..schemas import ClaimIn, CommandIn, CommandOut, DeviceOut, DeviceUpdate, ReadingOut, StationCreate
 from ..services import is_online, seconds_since, thresholds_for
 
@@ -56,6 +57,7 @@ def list_devices(
     unclaimed: bool = Query(False, description="Admins: only stations nobody owns"),
     user: User = Depends(current_user), db: Session = Depends(get_db),
 ):
+    sweep_offline(db, utcnow())
     q = select(Device).order_by(Device.id)
     if user.role != ROLE_ADMIN:
         q = q.where(Device.owner_id == user.id)
@@ -138,6 +140,7 @@ def release_device(device_id: str, request: Request,
 
 @router.get("/{device_id}", response_model=DeviceOut)
 def get_device(device_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    sweep_offline(db, utcnow())
     return device_out(get_accessible_device(db, user, device_id), user, db)
 
 

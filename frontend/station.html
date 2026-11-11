@@ -100,7 +100,7 @@
     <h1 id="title">Station check</h1>
     <span id="s-state"></span>
   </div>
-  <div class="sub" id="subtitle" style="margin-top:6px">Is the station connected, sending data and staying active?</div>
+  <div class="sub" id="subtitle" style="margin-top:6px">Is the station connected, reporting and staying active?</div>
 
   <section id="verdict" class="verdict">
     <div class="icon">…</div>
@@ -133,7 +133,7 @@
       <div class="checks">
         <div class="check" id="c-server"><div class="dot"></div><div><b>Server reachable</b><span>–</span></div><div class="tag">…</div></div>
         <div class="check" id="c-known"><div class="dot"></div><div><b>Station has connected</b><span>–</span></div><div class="tag">…</div></div>
-        <div class="check" id="c-online"><div class="dot"></div><div><b>Sending data right now</b><span>–</span></div><div class="tag">…</div></div>
+        <div class="check" id="c-online"><div class="dot"></div><div><b>Reporting right now</b><span>–</span></div><div class="tag">…</div></div>
         <div class="check" id="c-steady"><div class="dot"></div><div><b>Continuously active</b><span>–</span></div><div class="tag">…</div></div>
         <div class="check" id="c-health"><div class="dot"></div><div><b>Readings look healthy</b><span>–</span></div><div class="tag">…</div></div>
       </div>
@@ -144,8 +144,8 @@
       <div class="timeline" id="timeline"></div>
       <div class="axis"><span>5 min ago</span><span>now</span></div>
       <div class="legend">
-        <span><i style="background:var(--ok-dot)"></i>Data received</span>
-        <span><i style="background:var(--bad-dot)"></i>No data</span>
+        <span><i style="background:var(--ok-dot)"></i>Station checked in</span>
+        <span><i style="background:var(--bad-dot)"></i>Missed check-in</span>
         <span><i style="background:var(--surface-2);border:1px solid var(--border)"></i>Before first contact</span>
       </div>
     </section>
@@ -189,7 +189,7 @@
     <section class="card danger-zone">
       <div>
         <div class="card-title">Remove station</div>
-        <div class="muted" id="releaseText">Removes this station from the host's account. It keeps sending data;
+        <div class="muted" id="releaseText">Removes this station from the host's account. It keeps reporting;
           any host can add it again with its station ID.</div>
         <div class="msg" id="relMsg"></div>
       </div>
@@ -198,7 +198,7 @@
   </div>
 </main>
 
-<script src="common.js?v=4"></script>
+<script src="common.js?v=5"></script>
 <script>
 const POLL_MS = 2000;
 const SEND_EVERY_S = 2;         // firmware SEND_INTERVAL_MS
@@ -325,7 +325,7 @@ async function refresh() {
   let steady;
   if (a.recent.length === 0) {
     steady = "bad";
-    setCheck("c-steady", "bad", "NO", "No data at all in the last 5 minutes.");
+    setCheck("c-steady", "bad", "NO", "No check-ins at all in the last 5 minutes.");
   } else {
     const parts = [`${a.recent.length} readings (${a.coverage.toFixed(0)}% of expected)`];
     if (a.gaps) parts.push(`${a.gaps} dropout(s), longest ${Math.round(a.longest)} s`);
@@ -338,6 +338,9 @@ async function refresh() {
 
   // 5. reading health
   const last = readings[readings.length - 1];
+  const incs = await loadIncidents();
+  // Active alerts about the readings themselves (offline is already its own check above).
+  const live = incs.filter(i => i.active && i.kind !== "offline");
   let healthLevel = "";
   if (last) {
     const t = dev.thresholds;
@@ -348,8 +351,17 @@ async function refresh() {
       ALERT: ["bad", "ALERT", `Station reports ${last.device_alert} (limits ${t.sag_v}–${t.over_voltage_v} V).`],
       TAMPER: ["bad", "TAMPER", "Station says data lines are NOT blocked – firmware modified?"],
     };
-    const [lvl, tag, txt] = msgs[last.state] || ["warn", last.state, "Unknown state."];
+    let [lvl, tag, txt] = msgs[last.state] || ["warn", last.state, "Unknown state."];
+    if (live.length) {   // a reading can look normal while the pattern over time is an attack
+      const crit = live.some(i => i.severity === "critical");
+      if (lvl !== "bad") lvl = crit ? "bad" : "warn";
+      tag = crit ? "ALERT" : "CHECK";
+      txt = "Active alert" + (live.length > 1 ? "s" : "") + ": " +
+        [...new Set(live.map(i => (INCIDENT[i.kind] || { title: i.kind }).title))].join(", ") + ".";
+    }
     healthLevel = dev.online ? lvl : "";
+    $("c-health").querySelector("b").textContent = lvl === "ok" ? "Readings look healthy"
+      : lvl === "bad" ? "Readings show a problem" : "Readings need a look";
     setCheck("c-health", healthLevel, tag, (dev.online ? "" : `Last known (${ago(since)}): `) + txt
       + (last.current_ma < -5 ? " Negative current: VIN+/VIN- may be swapped." : ""));
 
@@ -362,18 +374,17 @@ async function refresh() {
   }
   $("s-state").innerHTML = statePill(dev.state);
   renderHero(dev, last, readings);
-  loadIncidents();
   $("s-seen").textContent = ago(since);
   $("s-ip").textContent = dev.last_ip || "–";
 
   // verdict
   const label = dev.name || dev.id;
   if (!dev.online) setVerdict("bad", "Not working – offline",
-    `${label} stopped sending data ${ago(since)}. Check power, Wi-Fi and the Serial Monitor.`);
+    `${label} stopped reporting ${ago(since)}. Check power, Wi-Fi and the Serial Monitor.`);
   else if (healthLevel === "bad") setVerdict("bad", "Connected, but reporting a problem", $("c-health").querySelector("span").textContent);
   else if (steady !== "ok" || healthLevel === "warn") setVerdict("warn", "Working, with issues",
-    "The station is sending data now, but see the warnings below.");
-  else setVerdict("ok", "Working", `${label} is connected, sending data every ~2 s and has been continuously active.`);
+    "The station is reporting now, but see the warnings below.");
+  else setVerdict("ok", "Working", `${label} is connected, reporting every ~2 s and has been continuously active.`);
 }
 
 // Big dial, current flow, power trend and the data-line shield.
@@ -398,16 +409,17 @@ function renderHero(dev, last, readings) {
 let incSig = "";
 async function loadIncidents() {
   let list;
-  try { list = await api(`/api/incidents?device_id=${encodeURIComponent(deviceId)}&limit=20`); } catch { return; }
+  try { list = await api(`/api/incidents?device_id=${encodeURIComponent(deviceId)}&limit=20`); } catch { return []; }
   $("incBox").classList.remove("hidden");
   const active = list.filter(i => i.active).length;
   $("incCount").textContent = list.length ? `${active} active · ${list.length} total` : "";
   const sig = JSON.stringify(list.map(i => [i.id, i.count, i.active, i.acknowledged_at, i.last_seen_at]));
-  if (sig === incSig) return;            // unchanged: don't re-draw (keeps buttons steady)
+  if (sig === incSig) return list;       // unchanged: don't re-draw (keeps buttons steady)
   incSig = sig;
   $("incList").innerHTML = list.length ? list.map(i => incidentCard(i, { station: false })).join("")
-    : `<div class="all-clear">${ICON.shield}<span><b>No incidents recorded.</b> This station has never reported exposed data lines, voltage attacks, restart loops or impersonation attempts.</span></div>`;
+    : `<div class="all-clear">${ICON.shield}<span><b>No incidents recorded.</b> Nothing suspicious has ever been detected on this station.</span></div>`;
   bindAcks($("incList"), () => { incSig = ""; loadIncidents(); });
+  return list;
 }
 
 let timer;

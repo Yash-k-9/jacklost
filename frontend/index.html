@@ -142,7 +142,7 @@
   <div class="msg" id="listMsg"></div>
 </main>
 
-<script src="common.js?v=4"></script>
+<script src="common.js?v=5"></script>
 <script>
 let me, hosts = [];
 document.documentElement.style.setProperty("--bolt",
@@ -238,7 +238,7 @@ function renderAdmin(devices) {
     byOwner.get(h.id) || [], "No stations yet. The host adds them from their own Stations page.")));
   const unowned = byOwner.get("none") || [];
   if (show === "none" || (show === "all" && unowned.length)) out.push(hostPanel("none",
-    `<span class="avatar" style="background:var(--surface-3);color:var(--muted)">?</span><span class="who-txt"><b>Not assigned to a host</b><span>Sending data, but no host has added them</span></span>`,
+    `<span class="avatar" style="background:var(--surface-3);color:var(--muted)">?</span><span class="who-txt"><b>Not assigned to a host</b><span>Reporting, but no host has added them</span></span>`,
     unowned, "Every station has a host.", "unassigned"));
   $("list").innerHTML = out.join("") || `<div class="empty-state"><b>No hosts yet</b>Hosts create their own account on the login page.</div>`;
 
@@ -257,7 +257,7 @@ function renderAlerts(list) {
   $("alertCount").textContent = list.length ? `${list.length} active` : "";
   $("alerts").innerHTML = list.length
     ? list.map(i => incidentCard(i, { owner: me.role === "admin" })).join("")
-    : `<div class="all-clear">${ICON.shield}<span><b>No security incidents.</b> No exposed data lines, voltage attacks, restart loops or impersonation attempts right now.</span></div>`;
+    : `<div class="all-clear">${ICON.shield}<span><b>No security incidents.</b> Nothing suspicious detected on your stations right now.</span></div>`;
   bindAcks($("alerts"), load);
 }
 

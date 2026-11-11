@@ -107,7 +107,7 @@ that misbehaves. The rest stay normal.
 | GET | `/api/health` | liveness |
 
 ## Security incidents
-Detected on the server from every reading, so the ESP32 sketch needs no changes. Hosts see them
+Detected on the server from every reading (and from rejected readings), so the ESP32 sketch needs no changes. Hosts see them
 on their Stations page (Security alerts), as a badge on each station card and in the station's
 incident history; admins see every host's. Hosts acknowledge incidents (logged in the audit log).
 
@@ -118,6 +118,20 @@ incident history; admins see every host's. Hosts acknowledge incidents (logged i
 | `voltage_spike` | voltage jumps >= `SPIKE_JUMP_V` (1 V) between two readings while a charger is present | no spike for `SPIKE_WINDOW_S` (60 s) |
 | `reboot_loop` | uptime drops back `REBOOT_LOOP_COUNT` (3) times, each within `REBOOT_WINDOW_MIN` (60 min) of the last | no restart for 60 min |
 | `bad_key` | a reading claiming an existing station is rejected for a wrong API key (IPs recorded) | no attempt for `BAD_KEY_WINDOW_MIN` (10 min) |
+| `over_current` (critical) | current above `OVER_CURRENT_MA` (2500 mA): short or malicious load | current back under the limit |
+| `hidden_load` (critical) | `HIDDEN_LOAD_READINGS` (8) readings in a row of a flat small current (60–250 mA, within 30 mA): an inline module, not a phone | the pattern breaks |
+| `clone` (critical) | uptime jumps ahead of real time by more than `CLONE_UPTIME_SLACK_S` (10 s), or two IPs report within 10 s: a second device uses this station's id | no sign for `CLONE_WINDOW_MIN` (10 min) |
+| `low_voltage` | voltage below the station's limit (charger present), or `device_alert=LOW_VOLTAGE` | voltage back over the limit |
+| `reversed_current` | current below -`REVERSED_CURRENT_MA` (20 mA): sensor wiring swapped / port rewired | current positive again |
+| `data_mismatch` | reported power more than `POWER_MISMATCH_PCT` (20 %) off V × I while charging: faulty sensor or faked readings | readings add up again |
+| `supply_lost` | charger supply ~0 V while the station is online | supply back |
+| `dropout` | `DROPOUT_COUNT` (3) gaps of `DROPOUT_GAP_S` (5 s)+ within `DROPOUT_WINDOW_MIN` (5 min) | no gap for 5 min |
+| `offline` | no reading for `OFFLINE_AFTER_S` (10 s); opened when stations/incidents are viewed, dated when it went silent | the next reading |
+| `invalid_data` | a reading with the right key but impossible values is rejected (422) | no such reading for 10 min |
+
+Every simulator attack scenario is replayed through the backend in
+`test_every_simulator_attack_scenario_raises_its_alert`, so none can stop raising its alert unnoticed.
+A single restart (`reboot`) is normal (power cut) and raises nothing until it repeats.
 
 | Method | Path | Purpose |
 |---|---|---|

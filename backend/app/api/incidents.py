@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..auth.deps import audit, current_user, get_accessible_device
 from ..db import get_db, utcnow
-from ..incidents import SEVERITY, is_active, is_visible
+from ..incidents import SEVERITY, is_active, is_visible, sweep_offline
 from ..models import ROLE_ADMIN, Device, Incident, User
 from ..schemas import IncidentOut
 
@@ -36,6 +36,7 @@ def list_incidents(
     limit: int = Query(100, ge=1, le=1000),
     user: User = Depends(current_user), db: Session = Depends(get_db),
 ):
+    sweep_offline(db, utcnow())
     q = select(Incident, Device).join(Device, Device.id == Incident.device_id).order_by(Incident.last_seen_at.desc())
     if device_id is not None:
         get_accessible_device(db, user, device_id)  # 404 if not theirs

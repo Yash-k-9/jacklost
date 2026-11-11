@@ -60,3 +60,18 @@ SPIKE_WINDOW_S: float = _float("SPIKE_WINDOW_S", 60)        # spikes this close 
 REBOOT_LOOP_COUNT: int = int(os.getenv("REBOOT_LOOP_COUNT", 3))  # restarts within the window -> alert
 REBOOT_WINDOW_MIN: float = _float("REBOOT_WINDOW_MIN", 60)
 BAD_KEY_WINDOW_MIN: float = _float("BAD_KEY_WINDOW_MIN", 10)  # wrong-key attempts this close = one incident
+OVER_CURRENT_MA: float = _float("OVER_CURRENT_MA", 2500)       # above this: short / malicious load
+REVERSED_CURRENT_MA: float = _float("REVERSED_CURRENT_MA", 20)  # current below -this: wiring swapped
+POWER_MISMATCH_PCT: float = _float("POWER_MISMATCH_PCT", 20)    # reported power vs V x I
+# Hidden inline module: this many readings in a row, all between MIN and MAX mA, within SPREAD mA.
+HIDDEN_LOAD_READINGS: int = int(os.getenv("HIDDEN_LOAD_READINGS", 8))
+HIDDEN_LOAD_MIN_MA: float = _float("HIDDEN_LOAD_MIN_MA", 60)
+HIDDEN_LOAD_MAX_MA: float = _float("HIDDEN_LOAD_MAX_MA", 250)
+HIDDEN_LOAD_SPREAD_MA: float = _float("HIDDEN_LOAD_SPREAD_MA", 30)
+# Clone: uptime ahead of real elapsed time by more than this (s), or two IPs within OFFLINE_AFTER_S.
+CLONE_UPTIME_SLACK_S: float = _float("CLONE_UPTIME_SLACK_S", 10)
+CLONE_WINDOW_MIN: float = _float("CLONE_WINDOW_MIN", 10)
+# Dropouts: a gap of this many seconds between readings counts; DROPOUT_COUNT in the window = alert.
+DROPOUT_GAP_S: float = _float("DROPOUT_GAP_S", 5)
+DROPOUT_COUNT: int = int(os.getenv("DROPOUT_COUNT", 3))
+DROPOUT_WINDOW_MIN: float = _float("DROPOUT_WINDOW_MIN", 5)

@@ -14,7 +14,7 @@
         "8001"
       ],
       "env": {
-        "DATABASE_URL": "sqlite:///C:/Users/HP/AppData/Local/Temp/claude/6b3818fa53c9f6a6/62d7b2e2-7da8-45ad-b79e-94cd189268b1/scratchpad/ui-test.db",
+        "DATABASE_URL": "sqlite:///C:/Users/HP/AppData/Local/Temp/claude/2c38b3d6a595e1d7/a98a99c1-6b16-4762-b185-b550e2ad0184/scratchpad/live.db",
         "JWT_SECRET": "local-test-secret-0123456789abcdef",
         "DEVICE_API_KEY": "ui-test-key"
       },
