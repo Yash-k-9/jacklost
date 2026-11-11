@@ -106,5 +106,23 @@ that misbehaves. The rest stay normal.
 | POST | `/api/devices/{id}/commands` | `{"name": "blink_led" \| "sim_data_attempt"}` |
 | GET | `/api/health` | liveness |
 
+## Security incidents
+Detected on the server from every reading, so the ESP32 sketch needs no changes. Hosts see them
+on their Stations page (Security alerts), as a badge on each station card and in the station's
+incident history; admins see every host's. Hosts acknowledge incidents (logged in the audit log).
+
+| Kind | Raised when | Ends when |
+|---|---|---|
+| `data_exposed` (critical) | a reading has `data_blocked=false` | the next reading with `data_blocked=true` |
+| `over_voltage` (critical) | voltage above the station's limit, or `device_alert=HIGH_VOLTAGE` | voltage back under the limit |
+| `voltage_spike` | voltage jumps >= `SPIKE_JUMP_V` (1 V) between two readings while a charger is present | no spike for `SPIKE_WINDOW_S` (60 s) |
+| `reboot_loop` | uptime drops back `REBOOT_LOOP_COUNT` (3) times, each within `REBOOT_WINDOW_MIN` (60 min) of the last | no restart for 60 min |
+| `bad_key` | a reading claiming an existing station is rejected for a wrong API key (IPs recorded) | no attempt for `BAD_KEY_WINDOW_MIN` (10 min) |
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/incidents?active_only=&device_id=&limit=` | host: own stations; admin: all |
+| POST | `/api/incidents/{id}/ack` | acknowledge (owner or admin) |
+
 Per-reading states: `CHARGING`, `IDLE`, `NO_SUPPLY`, `ALERT` (station reports sustained
 low/high voltage), `TAMPER` (`data_blocked=false`). `OFFLINE` is derived from `last_seen`.

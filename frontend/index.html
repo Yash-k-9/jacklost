@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Juice Guard – Stations</title>
-<link rel="stylesheet" href="common.css?v=3">
+<link rel="stylesheet" href="common.css?v=4">
 <style>
   /* ---- hero control deck ---- */
   .deck { position: relative; display: grid; grid-template-columns: 1.35fr 1fr; gap: 18px; margin-bottom: 30px; }
@@ -105,6 +105,12 @@
     </div>
   </section>
 
+  <!-- security alerts (both roles) -->
+  <section id="alertBox" class="hidden" style="margin-bottom:8px">
+    <div class="section-head" style="margin-top:0"><h2>Security alerts</h2><span class="chip" id="alertCount"></span></div>
+    <div class="alerts" id="alerts"></div>
+  </section>
+
   <!-- admin: host list header -->
   <div class="section-head hidden" id="adminHead">
     <h2>Stations by host</h2>
@@ -136,7 +142,7 @@
   <div class="msg" id="listMsg"></div>
 </main>
 
-<script src="common.js?v=3"></script>
+<script src="common.js?v=4"></script>
 <script>
 let me, hosts = [];
 document.documentElement.style.setProperty("--bolt",
@@ -247,11 +253,20 @@ function renderAdmin(devices) {
   });
 }
 
+function renderAlerts(list) {
+  $("alertCount").textContent = list.length ? `${list.length} active` : "";
+  $("alerts").innerHTML = list.length
+    ? list.map(i => incidentCard(i, { owner: me.role === "admin" })).join("")
+    : `<div class="all-clear">${ICON.shield}<span><b>No security incidents.</b> No exposed data lines, voltage attacks, restart loops or impersonation attempts right now.</span></div>`;
+  bindAcks($("alerts"), load);
+}
+
 async function load() {
-  let devices;
+  let devices, alerts;
   try {
     if (me.role === "admin") hosts = await api("/api/admin/users?role=host");
-    devices = await api("/api/devices");
+    [devices, alerts] = await Promise.all([api("/api/devices"), api("/api/incidents?active_only=true&limit=20")]);
+    renderAlerts(alerts);
     showMsg($("listMsg"), "");
   } catch (e) { showMsg($("listMsg"), e.message); return; }
   me.role === "admin" ? renderAdmin(devices) : renderHost(devices);
@@ -284,12 +299,12 @@ $("filter").onchange = load;
 (async () => {
   me = await requireLogin({ active: "stations" });
   if (me.role === "admin") {
-    ["deck", "adminHead", "dHostsBox"].forEach(id => $(id).classList.remove("hidden"));
+    ["deck", "adminHead", "dHostsBox", "alertBox"].forEach(id => $(id).classList.remove("hidden"));
     $("dShieldIcon").innerHTML = ICON.shield;
     $("dEyebrow").textContent = "Admin · network overview";
     $("dWattsLabel").textContent = "W across the whole network";
   } else {
-    ["deck", "bayHead"].forEach(id => $(id).classList.remove("hidden"));
+    ["deck", "bayHead", "alertBox"].forEach(id => $(id).classList.remove("hidden"));
     $("dShieldIcon").innerHTML = ICON.shield;
     $("addBtn").innerHTML = ICON.plus + "Add station";
   }

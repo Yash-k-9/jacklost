@@ -15,6 +15,7 @@ from ..auth.deps import audit, current_user, get_accessible_device
 from ..db import get_db, utcnow
 from ..models import ROLE_ADMIN, AuditLog, Command, Device, Reading, User
 from ..auth.security import new_pairing_code
+from .incidents import count_active
 from ..schemas import ClaimIn, CommandIn, CommandOut, DeviceOut, DeviceUpdate, ReadingOut, StationCreate
 from ..services import is_online, seconds_since, thresholds_for
 
@@ -45,6 +46,7 @@ def device_out(d: Device, viewer: User, db: Session) -> DeviceOut:
         data_blocked=last.data_blocked if last else None,
         rssi=last.rssi if last else None,
         power_history=[r.power_mw for r in reversed(recent)],
+        active_incidents=count_active(db, d.id),
     )
 
 

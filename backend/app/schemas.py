@@ -60,6 +60,7 @@ class DeviceOut(BaseModel):
     data_blocked: bool | None = None
     rssi: int | None = None
     power_history: list[float] = []  # last 40 readings, oldest first (sparklines)
+    active_incidents: int = 0  # security incidents still going on
 
 
 class ReadingOut(BaseModel):
@@ -210,3 +211,20 @@ class AuditOut(BaseModel):
     target: str | None
     detail: dict | None
     client_ip: str | None
+
+
+class IncidentOut(BaseModel):
+    id: int
+    device_id: str
+    device_name: str | None = None
+    owner_email: str | None = None  # admins only
+    kind: str
+    severity: str
+    active: bool
+    started_at: datetime
+    last_seen_at: datetime
+    ended_at: datetime | None
+    count: int
+    peak: float | None
+    detail: dict | None
+    acknowledged_at: datetime | None

@@ -251,3 +251,35 @@ td select { width: auto; min-width: 210px; padding: 7px 10px; font-size: 13.5px;
   .bays { grid-template-columns: 1fr; }
   th, td { padding: 11px 12px; }
 }
+
+/* ============ security incidents ============ */
+.alerts { display: grid; gap: 10px; }
+.alert-card { display: grid; grid-template-columns: 44px 1fr auto; gap: 14px; align-items: center; padding: 14px 16px;
+              border-radius: 16px; border: 1px solid rgba(255, 181, 71, .28); background: linear-gradient(90deg, var(--warn-soft), transparent 70%), var(--surface); }
+.alert-card.critical { border-color: rgba(255, 84, 104, .38); background: linear-gradient(90deg, var(--bad-soft), transparent 70%), var(--surface);
+                       box-shadow: 0 0 30px -14px rgba(255, 84, 104, .6); }
+.alert-card.done { opacity: .55; border-color: var(--border); background: var(--surface); box-shadow: none; }
+.alert-ico { width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; color: var(--warn); background: var(--warn-soft);
+             border: 1px solid rgba(255, 181, 71, .3); }
+.alert-card.critical .alert-ico { color: var(--bad); background: var(--bad-soft); border-color: rgba(255, 84, 104, .35); }
+.alert-card.critical.is-live .alert-ico { animation: alarm 1.4s ease-in-out infinite; }
+@keyframes alarm { 50% { box-shadow: 0 0 0 6px rgba(255, 84, 104, .12); } }
+.alert-ico svg { width: 20px; height: 20px; }
+.alert-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font: 600 15px var(--display); }
+.alert-title a { color: var(--text); font-family: var(--mono); font-size: 13px; font-weight: 500; }
+.alert-text { color: var(--muted); font-size: 13px; margin-top: 3px; }
+.alert-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
+.alert-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.alert-side .when { font: 500 11.5px var(--mono); color: var(--muted); white-space: nowrap; }
+.all-clear { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-radius: 16px; border: 1px solid rgba(56, 225, 255, .18);
+             background: linear-gradient(90deg, var(--shield-dim), transparent 70%); color: var(--muted); font-size: 13.5px; }
+.all-clear svg { width: 20px; height: 20px; color: var(--shield); flex: none; }
+.all-clear b { color: var(--text); font-weight: 600; }
+.bay-tags { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.bay-alert { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px;
+             border-radius: 99px; background: var(--bad); color: #fff; font: 700 11px var(--mono); letter-spacing: .04em;
+             box-shadow: 0 0 18px -2px rgba(255, 84, 104, .7); }
+.bay-alert svg { width: 12px; height: 12px; }
+.bay.has-alert { border-color: rgba(255, 84, 104, .35); }
+@media (max-width: 720px) { .alert-card { grid-template-columns: 40px 1fr; } .alert-side { grid-column: 2; flex-direction: row; align-items: center; justify-content: space-between; } }
+@media (prefers-reduced-motion: reduce) { .alert-card.critical.is-live .alert-ico { animation: none; } }

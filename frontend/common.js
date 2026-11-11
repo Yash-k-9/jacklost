@@ -164,10 +164,11 @@ function stationCard(d, { admin = false } = {}) {
     d.location ? `<span>${ICON.pin}${esc(d.location)}</span>` : "",
     admin && d.pairing_code ? `<span title="Pairing code">#${esc(d.pairing_code)}</span>` : "",
   ].join("");
-  return `<a class="bay ${level} ${charging ? "charging" : ""} ${d.online ? "" : "offline"}" href="${href}">
+  const alerts = d.active_incidents || 0;
+  return `<a class="bay ${level} ${charging ? "charging" : ""} ${d.online ? "" : "offline"} ${alerts ? "has-alert" : ""}" href="${href}">
     <div class="bay-head">
       <div><div class="bay-name">${esc(d.name || d.id)}</div><div class="bay-id">${d.name ? esc(d.id) : "&nbsp;"}</div></div>
-      ${statePill(d.state)}
+      <div class="bay-tags">${statePill(d.state)}${alerts ? `<span class="bay-alert">${WARN_ICON}${alerts} alert${alerts > 1 ? "s" : ""}</span>` : ""}</div>
     </div>
     <div class="bay-body">
       ${gauge(d.voltage_v, d.thresholds, level)}
@@ -245,4 +246,54 @@ async function requireLogin({ adminOnly = false, active = "" } = {}) {
     location.href = "login.html";
   };
   return me;
+}
+
+// ---------- security incidents ----------
+const WARN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>';
+const INCIDENT = {
+  data_exposed: { title: "Data lines exposed", icon: () => ICON.shield,
+    text: i => `The station reported D+/D− connected (${i.count} reading${i.count > 1 ? "s" : ""}). A phone plugged in now could have its data read. Inspect the port and wiring before anyone uses it.` },
+  over_voltage: { title: "Over-voltage", icon: () => ICON.bolt,
+    text: i => `Voltage peaked at ${i.peak != null ? i.peak.toFixed(2) : "?"} V${i.detail && i.detail.limit_v ? ` (limit ${i.detail.limit_v} V)` : ""}. A malicious or faulty charger could damage phones. Unplug the supply and check it.` },
+  voltage_spike: { title: "Voltage spike", icon: () => ICON.up,
+    text: i => `Voltage jumped by up to ${i.peak != null ? i.peak.toFixed(2) : "?"} V between readings, ${i.count} time${i.count > 1 ? "s" : ""}. This can be power injection or a failing supply.` },
+  reboot_loop: { title: "Restart loop", icon: () => ICON.clock,
+    text: i => `The station restarted ${i.count} times in a short period. Someone may be power-cycling it to reset or tamper with it.` },
+  bad_key: { title: "Impersonation attempt", icon: () => WARN_ICON,
+    text: i => `${i.count} reading${i.count > 1 ? "s" : ""} claiming to be this station ${i.count > 1 ? "were" : "was"} rejected for a wrong API key${i.detail && i.detail.ips && i.detail.ips.length ? ` from ${i.detail.ips.join(", ")}` : ""}. Someone may be trying to fake its data.` },
+};
+
+// One incident as an alert row. opts.station: show which station; opts.owner: show host email (admin).
+function incidentCard(i, { station = true, owner = false } = {}) {
+  const meta = INCIDENT[i.kind] || { title: i.kind, icon: () => WARN_ICON, text: () => "" };
+  const sev = i.severity === "critical" ? "critical" : "warning";
+  const started = parseTs(i.started_at), ended = i.ended_at ? parseTs(i.ended_at) : null;
+  const chips = [
+    `<span class="chip">${i.active ? "since " + started.toLocaleTimeString() : "ended " + ago((Date.now() - ended) / 1000)}</span>`,
+    i.count > 1 ? `<span class="chip">${i.count}×</span>` : "",
+    owner && i.owner_email ? `<span class="chip">${esc(i.owner_email)}</span>` : "",
+    i.acknowledged_at ? `<span class="chip" style="color:var(--shield)">acknowledged</span>` : "",
+  ].join("");
+  const link = station ? ` · <a href="station.html?id=${encodeURIComponent(i.device_id)}">${esc(i.device_name || i.device_id)}</a>` : "";
+  return `<div class="alert-card ${sev} ${i.active ? "is-live" : ""} ${!i.active || i.acknowledged_at ? "done" : ""}">
+    <span class="alert-ico">${meta.icon()}</span>
+    <div style="min-width:0">
+      <div class="alert-title">${esc(meta.title)}${link}${i.active ? ` <span class="pill ${sev === "critical" ? "bad" : "warn"}">Live</span>` : ""}</div>
+      <div class="alert-text">${esc(meta.text(i))}</div>
+      <div class="alert-meta">${chips}</div>
+    </div>
+    <div class="alert-side">
+      <span class="when">${ago((Date.now() - parseTs(i.last_seen_at)) / 1000)}</span>
+      ${i.acknowledged_at ? "" : `<button class="sm" data-ack="${i.id}">Acknowledge</button>`}
+    </div>
+  </div>`;
+}
+
+// Wire up Acknowledge buttons inside `root`; calls `after` once one succeeds.
+function bindAcks(root, after) {
+  root.querySelectorAll("[data-ack]").forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    try { await api(`/api/incidents/${b.dataset.ack}/ack`, { method: "POST" }); after(); }
+    catch (e) { b.disabled = false; alert(e.message); }
+  });
 }

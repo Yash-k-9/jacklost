@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Juice Guard – Admin</title>
-<link rel="stylesheet" href="common.css?v=3">
+<link rel="stylesheet" href="common.css?v=4">
 <style>
   /* ---- console header ---- */
   .console { display: grid; grid-template-columns: 1fr auto; gap: 18px; align-items: end; margin-bottom: 22px; }
@@ -177,7 +177,7 @@
   </section>
 </main>
 
-<script src="common.js?v=3"></script>
+<script src="common.js?v=4"></script>
 <script>
 let me, hosts = [], users = [], devices = [], current = "users";
 const msg = (t, ok) => showMsg($("msg"), t, ok);
@@ -362,6 +362,7 @@ const ACTIONS = {
   command_sent: ["station", I.send, "sent a command to"],
   pairing_code_regenerated: ["admin", I.key, "made a new pairing code for"],
   user_updated: ["admin", I.user, "updated account"],
+  incident_acknowledged: ["station", I.alert, "acknowledged a security incident on"],
 };
 $("auAction").insertAdjacentHTML("beforeend", Object.entries(ACTIONS).map(([k, v]) => `<option value="${k}">${v[2]}</option>`).join(""));
 

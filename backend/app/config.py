@@ -52,3 +52,11 @@ LOGIN_WINDOW_MIN: float = _float("LOGIN_WINDOW_MIN", 15)
 FRONTEND_ORIGINS: list[str] = os.getenv(
     "FRONTEND_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
 ).split(",")
+
+# ---- Security incidents -----------------------------------------------------------------------
+# Voltage jump between two consecutive readings (both above NO_SUPPLY_V) that counts as a spike.
+SPIKE_JUMP_V: float = _float("SPIKE_JUMP_V", 1.0)
+SPIKE_WINDOW_S: float = _float("SPIKE_WINDOW_S", 60)        # spikes this close together = one incident
+REBOOT_LOOP_COUNT: int = int(os.getenv("REBOOT_LOOP_COUNT", 3))  # restarts within the window -> alert
+REBOOT_WINDOW_MIN: float = _float("REBOOT_WINDOW_MIN", 60)
+BAD_KEY_WINDOW_MIN: float = _float("BAD_KEY_WINDOW_MIN", 10)  # wrong-key attempts this close = one incident

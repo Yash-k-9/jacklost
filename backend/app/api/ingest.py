@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from .. import config
 from ..db import get_db, utcnow
+from ..incidents import check_reading, record_bad_key
 from ..auth.security import new_pairing_code
 from ..models import AuthFailure, Command, Device, Reading
 from ..schemas import IngestPayload, IngestReply
@@ -28,6 +29,7 @@ def ingest(
 
     if not x_api_key or not secrets.compare_digest(x_api_key, config.DEVICE_API_KEY):
         db.add(AuthFailure(client_ip=client_ip, device_id_claimed=payload.device_id))
+        record_bad_key(db, payload.device_id, client_ip, utcnow())
         db.commit()
         log.warning("401 bad API key from %s claiming %s", client_ip, payload.device_id)
         raise HTTPException(status_code=401, detail="Invalid API key")
@@ -38,6 +40,12 @@ def ingest(
         device = Device(id=payload.device_id, first_seen=now, pairing_code=new_pairing_code())
         db.add(device)
         log.info("New station registered: %s from %s", payload.device_id, client_ip)
+
+    prev = db.scalar(select(Reading).where(Reading.device_id == payload.device_id)
+                     .order_by(Reading.id.desc()).limit(1))
+    if device in db.new:
+        db.flush()  # incidents reference the new station row
+    check_reading(db, device, payload, prev, now)
 
     state = compute_state(payload.voltage_v, payload.current_ma, payload.device_alert, payload.data_blocked)
 

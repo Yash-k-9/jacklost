@@ -116,3 +116,23 @@ class AuditLog(Base):
     target: Mapped[str | None] = mapped_column(String(128))
     detail: Mapped[dict | None] = mapped_column(JSON)
     client_ip: Mapped[str | None] = mapped_column(String(64))
+
+
+class Incident(Base):
+    """A security incident on one station (data lines exposed, over-voltage, spikes,
+    restart loops, wrong-key impersonation attempts). Opened and extended by the ingest
+    endpoint; hosts acknowledge them in the portal."""
+
+    __tablename__ = "incidents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    device_id: Mapped[str] = mapped_column(ForeignKey("devices.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(32), index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime)  # set when the condition clears
+    count: Mapped[int] = mapped_column(Integer, default=1)      # readings / events in this incident
+    peak: Mapped[float | None] = mapped_column(Float)           # worst value seen (V or V jump)
+    detail: Mapped[dict | None] = mapped_column(JSON)
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime)
+    acknowledged_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))

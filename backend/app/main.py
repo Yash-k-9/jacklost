@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import config
-from .api import admin, devices, ingest
+from .api import admin, devices, incidents, ingest
 from .auth import routes as auth_routes
 from .auth.security import new_pairing_code
 from .db import SessionLocal, init_db, utcnow
@@ -71,6 +71,7 @@ app.include_router(ingest.router)
 app.include_router(auth_routes.router)
 app.include_router(devices.router)
 app.include_router(admin.router)
+app.include_router(incidents.router)
 
 
 # Simple status page (frontend/index.html) at http://<pc-ip>:8000/

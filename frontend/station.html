@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Juice Guard – Station Check</title>
-<link rel="stylesheet" href="common.css?v=3">
+<link rel="stylesheet" href="common.css?v=4">
 <style>
   main { max-width: 1040px; }
   .back { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--muted); font-weight: 550; }
@@ -151,6 +151,11 @@
     </section>
   </div>
 
+  <section id="incBox" class="hidden">
+    <div class="section-head"><h2>Security incidents</h2><span class="chip" id="incCount"></span></div>
+    <div class="alerts" id="incList"></div>
+  </section>
+
   <div id="controls" class="hidden">
     <div class="section-head"><h2>Manage</h2></div>
     <div class="controls">
@@ -193,7 +198,7 @@
   </div>
 </main>
 
-<script src="common.js?v=3"></script>
+<script src="common.js?v=4"></script>
 <script>
 const POLL_MS = 2000;
 const SEND_EVERY_S = 2;         // firmware SEND_INTERVAL_MS
@@ -357,6 +362,7 @@ async function refresh() {
   }
   $("s-state").innerHTML = statePill(dev.state);
   renderHero(dev, last, readings);
+  loadIncidents();
   $("s-seen").textContent = ago(since);
   $("s-ip").textContent = dev.last_ip || "–";
 
@@ -387,6 +393,21 @@ function renderHero(dev, last, readings) {
     : "<b>Shield status</b><span>" + (dev && !online ? "Station is offline." : "Waiting for a reading.") + "</span>");
   $("heroLines").className = blocked === true ? "cut" : blocked === false ? "open" : "";
   $("heroLines").innerHTML = "D+ / D−<b>" + (blocked === true ? "Cut" : blocked === false ? "EXPOSED" : "–") + "</b>";
+}
+
+let incSig = "";
+async function loadIncidents() {
+  let list;
+  try { list = await api(`/api/incidents?device_id=${encodeURIComponent(deviceId)}&limit=20`); } catch { return; }
+  $("incBox").classList.remove("hidden");
+  const active = list.filter(i => i.active).length;
+  $("incCount").textContent = list.length ? `${active} active · ${list.length} total` : "";
+  const sig = JSON.stringify(list.map(i => [i.id, i.count, i.active, i.acknowledged_at, i.last_seen_at]));
+  if (sig === incSig) return;            // unchanged: don't re-draw (keeps buttons steady)
+  incSig = sig;
+  $("incList").innerHTML = list.length ? list.map(i => incidentCard(i, { station: false })).join("")
+    : `<div class="all-clear">${ICON.shield}<span><b>No incidents recorded.</b> This station has never reported exposed data lines, voltage attacks, restart loops or impersonation attempts.</span></div>`;
+  bindAcks($("incList"), () => { incSig = ""; loadIncidents(); });
 }
 
 let timer;
