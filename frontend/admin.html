@@ -56,7 +56,7 @@
   .alloc > header .txt { flex: 1; min-width: 0; }
   .alloc > header b { display: block; font: 600 15px var(--display); overflow-wrap: anywhere; }
   .alloc > header span.m { font-size: 12.5px; color: var(--muted); }
-  .strip { display: grid; grid-template-columns: 14px minmax(150px, 1.4fr) 150px 120px minmax(190px, 1.2fr) auto; gap: 14px; align-items: center;
+  .strip { display: grid; grid-template-columns: 14px minmax(150px, 1.4fr) 150px minmax(190px, 1.2fr); gap: 14px; align-items: center;
            padding: 12px 18px; border-bottom: 1px solid var(--border); }
   .strip:last-child { border-bottom: 0; }
   .strip:hover { background: rgba(255, 255, 255, .015); }
@@ -69,12 +69,7 @@
   .vbar b { color: var(--text); font-size: 13px; }
   .vbar i { display: block; height: 4px; margin-top: 5px; border-radius: 99px; background: var(--surface-3); position: relative; overflow: hidden; }
   .vbar i::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--w, 0%); background: var(--c, var(--volt)); border-radius: inherit; }
-  .code { display: inline-flex; align-items: center; gap: 6px; font: 600 12.5px var(--mono); letter-spacing: .08em; padding: 5px 9px;
-          border-radius: 8px; background: rgba(0, 0, 0, .35); border: 1px solid var(--border); cursor: pointer; color: var(--text); }
-  .code:hover { border-color: var(--volt); }
-  .code svg { width: 12px; height: 12px; color: var(--muted); }
   .strip select { padding: 8px 10px; font-size: 13px; }
-  .strip .acts { display: flex; gap: 6px; justify-content: flex-end; }
   .shield-ico { display: inline-flex; color: var(--shield); } .shield-ico.exposed { color: var(--bad); } .shield-ico.unknown { color: var(--faint); }
   .shield-ico svg { width: 15px; height: 15px; }
 
@@ -104,9 +99,8 @@
 
   @media (max-width: 980px) {
     .strip { grid-template-columns: 14px 1fr auto; }
-    .strip .vbar, .strip .codecell { display: none; }
+    .strip .vbar { display: none; }
     .strip .assign { grid-column: 2 / -1; }
-    .strip .acts { grid-column: 2 / -1; justify-content: flex-start; }
   }
   @media (max-width: 720px) {
     .console { grid-template-columns: 1fr; }
@@ -159,7 +153,6 @@
     <div class="bar">
       <select id="stFilter" style="width:auto;min-width:260px" aria-label="Show stations of"><option value="all">All hosts</option></select>
       <div class="grow"></div>
-      <span class="hint" style="margin:0">Click a pairing code to copy it.</span>
     </div>
     <div id="stGroups"></div>
   </section>
@@ -177,7 +170,7 @@
   </section>
 </main>
 
-<script src="common.js?v=5"></script>
+<script src="common.js?v=6"></script>
 <script>
 let me, hosts = [], users = [], devices = [], current = "users";
 const msg = (t, ok) => showMsg($("msg"), t, ok);
@@ -293,9 +286,7 @@ function strip(d) {
     <div class="nm"><a href="station.html?id=${encodeURIComponent(d.id)}">${esc(d.name || d.id)}</a>
       <div>${esc(d.id)} · ${d.last_seen ? ago(d.seconds_since_seen) : "never seen"}${d.added_at ? " · added " + parseTs(d.added_at).toLocaleDateString() : ""}</div></div>
     <div class="vbar" style="--w:${d.online ? w : 0}%;--c:${vc}"><b>${v == null ? "–" : v.toFixed(2)}</b> V &nbsp;${shieldIco(d)}<i></i></div>
-    <div class="codecell"><span class="code" data-copy="${esc(d.pairing_code || "")}" title="Copy pairing code">${esc(d.pairing_code || "–")}${I.copy}</span></div>
     <div class="assign"><select data-assign="${esc(d.id)}" data-was="${d.owner_id ?? ""}" aria-label="Host for ${esc(d.id)}">${opts.join("")}</select></div>
-    <div class="acts"><button class="sm ghost" data-code="${esc(d.id)}" title="New pairing code">${I.key}New code</button></div>
   </div>`;
 }
 
@@ -330,18 +321,6 @@ function renderStations() {
     try { await api(`/api/admin/devices/${encodeURIComponent(id)}/assign`, { method: "POST", body: { user_id: userId } });
           msg(`${id} moved to ${who}.`, true); refresh(); }
     catch (e) { msg(e.message); s.value = s.dataset.was; }
-  });
-  $("stGroups").querySelectorAll("[data-code]").forEach(b => b.onclick = async () => {
-    const id = b.dataset.code;
-    if (!confirm(`Make a new pairing code for ${id}? The old code stops working.`)) return;
-    try { const d = await api(`/api/admin/devices/${encodeURIComponent(id)}/pairing-code`, { method: "POST" });
-          msg(`New pairing code for ${id}: ${d.pairing_code}`, true); refresh(); }
-    catch (e) { msg(e.message); }
-  });
-  $("stGroups").querySelectorAll("[data-copy]").forEach(c => c.onclick = async () => {
-    if (!c.dataset.copy) return;
-    try { await navigator.clipboard.writeText(c.dataset.copy); msg(`Copied ${c.dataset.copy}.`, true); }
-    catch { msg("Copy not allowed here. Select the code and copy it by hand."); }
   });
 }
 $("stFilter").onchange = renderStations;

@@ -168,7 +168,6 @@ function stationCard(d, { admin = false } = {}) {
     `<span>${signalBars(d.online ? d.rssi : null)}</span>`,
     `<span>${ICON.clock}${d.last_seen ? ago(d.seconds_since_seen) : "never"}</span>`,
     d.location ? `<span>${ICON.pin}${esc(d.location)}</span>` : "",
-    admin && d.pairing_code ? `<span title="Pairing code">#${esc(d.pairing_code)}</span>` : "",
   ].join("");
   const alerts = d.active_incidents || 0;
   return `<a class="bay ${level} ${charging ? "charging" : ""} ${d.online ? "" : "offline"} ${alerts ? "has-alert" : ""}" href="${href}">

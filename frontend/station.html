@@ -130,7 +130,6 @@
       <div class="card-title">Health checks</div>
       <div class="muted" style="margin-bottom:8px">Updated every 2 seconds.</div>
       <div class="checks">
-        <div class="check" id="c-server"><div class="dot"></div><div><b>Server reachable</b><span>–</span></div><div class="tag">…</div></div>
         <div class="check" id="c-known"><div class="dot"></div><div><b>Station has connected</b><span>–</span></div><div class="tag">…</div></div>
         <div class="check" id="c-online"><div class="dot"></div><div><b>Reporting right now</b><span>–</span></div><div class="tag">…</div></div>
         <div class="check" id="c-steady"><div class="dot"></div><div><b>Continuously active</b><span>–</span></div><div class="tag">…</div></div>
@@ -197,11 +196,11 @@
   </div>
 </main>
 
-<script src="common.js?v=5"></script>
+<script src="common.js?v=6"></script>
 <script>
 const POLL_MS = 2000;
-const SEND_EVERY_S = 2;         // firmware SEND_INTERVAL_MS
-const GAP_S = 6;                // > 3 missed sends counts as a dropout
+const SEND_EVERY_S = 2;         // firmware averages 2 s, then posts (real period ~2.2-2.6 s)
+const GAP_S = 6;                // a gap this long means check-ins went missing
 const WINDOW_S = 300;           // look at the last 5 minutes
 const SLOT_S = 10;
 
@@ -225,7 +224,7 @@ function setVerdict(level, title, text) {
 }
 
 function resetRest(from) {
-  const ids = ["c-server", "c-known", "c-online", "c-steady", "c-health"];
+  const ids = ["c-known", "c-online", "c-steady", "c-health"];
   ids.slice(ids.indexOf(from)).forEach(id => setCheck(id, "", "–", "Not checked"));
   $("timeline").innerHTML = "";
   ["s-i","s-p","s-rssi","s-up","s-seen"].forEach(id => $(id).textContent = "–");
@@ -250,10 +249,17 @@ function analyse(readings, serverNow, firstSeen) {
     if (end <= firstSeen) { slots.push(null); continue; }   // station did not exist yet
     slots.push(recent.some(r => { const t = parseTs(r.ts); return t > start && t <= end; }));
   }
-  // Only expect readings since the station first connected (if that is inside the window).
-  const spanS = Math.min(WINDOW_S, Math.max(SEND_EVERY_S, (serverNow - firstSeen) / 1000));
-  return { recent, gaps, longest, reboots, slots,
-           coverage: Math.min(100, recent.length / (spanS / SEND_EVERY_S) * 100) };
+  // Coverage = share of the 10 s activity slots (since first contact) that got a check-in: the
+  // same thing the bars show. Not "readings / (300 s / 2 s)": a real ESP32 averages for 2 s and
+  // then spends a few hundred ms posting, so it never reaches exactly one reading per 2 s.
+  // The slot still running now is left out, it may simply not have had its check-in yet.
+  const known = slots.slice(0, -1).filter(x => x !== null);
+  const coverage = known.length ? known.filter(Boolean).length / known.length * 100 : (recent.length ? 100 : 0);
+  const iv = [];
+  for (let i = 1; i < recent.length; i++) iv.push((parseTs(recent[i].ts) - parseTs(recent[i - 1].ts)) / 1000);
+  iv.sort((x, y) => x - y);
+  const every = iv.length ? iv[Math.floor(iv.length / 2)] : null;   // median interval
+  return { recent, gaps, longest, reboots, slots, coverage, every };
 }
 
 function fillSettings(dev) {
@@ -265,20 +271,18 @@ function fillSettings(dev) {
   $("fOver").value = dev.thresholds.over_voltage_v;
   if (me.role === "admin") {
     $("releaseText").textContent = dev.owner_email
-      ? `Takes this station away from ${dev.owner_email}. It keeps sending data. You can also reassign it on the Admin page.`
+      ? `Takes this station away from ${dev.owner_email}. It keeps reporting. You can also reassign it on the Admin page.`
       : "This station is not on any host's account.";
     $("release").disabled = !dev.owner_email;
   }
 }
 
 async function refresh() {
-  // 1. server
+  // 1. server time (used to judge how recent the readings are)
   let health;
   try {
     health = await api("/api/health");
-    setCheck("c-server", "ok", "YES", "Backend is running.");
   } catch (e) {
-    setCheck("c-server", "bad", "NO", "Cannot reach the backend. Is uvicorn running?");
     resetRest("c-known");
     setVerdict("bad", "Server down", "The dashboard cannot reach the backend, so the station cannot either.");
     return;
@@ -326,7 +330,8 @@ async function refresh() {
     steady = "bad";
     setCheck("c-steady", "bad", "NO", "No check-ins at all in the last 5 minutes.");
   } else {
-    const parts = [`${a.recent.length} readings (${a.coverage.toFixed(0)}% of expected)`];
+    const parts = [`${a.recent.length} check-ins${a.every ? `, every ~${a.every.toFixed(1)} s` : ""}` +
+                   (a.coverage < 100 ? ` (${a.coverage.toFixed(0)}% of 10 s slots covered)` : "")];
     if (a.gaps) parts.push(`${a.gaps} dropout(s), longest ${Math.round(a.longest)} s`);
     if (a.reboots) parts.push(`${a.reboots} reboot(s)`);
     steady = !a.gaps && !a.reboots && a.coverage >= 90 && dev.online ? "ok"
